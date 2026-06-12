@@ -9,130 +9,107 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Try to load pixel-agents character sprites
-    this.load.on('loaderror', (_file: Phaser.Loader.File) => {
-      // silently fall back to procedural player texture
-    });
+    // ── Pixel-agents assets ──────────────────────────────────────────────────
+    // char_0.png: 112×96 → 7 cols × 6 rows of 16×16 frames
     this.load.spritesheet('char', 'assets/characters/char_0.png', {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
+    // floor tile: 16×16 pixel art floor
+    this.load.image('floor_tile', 'assets/floors/floor_0.png');
+    // wall sheet: 64×128 → 4 cols × 8 rows of 16×16 (16 bitmask variants)
+    this.load.spritesheet('wall_sheet', 'assets/walls/wall_0.png', {
       frameWidth: 16,
       frameHeight: 16,
     });
   }
 
   create(): void {
-    this.makeTileTextures();
-    this.makePlayerTexture();
-    this.makeSignTexture();
-
-    // Progress bar / loading text
-    const { width, height } = this.scale;
-    const text = this.add
-      .text(width / 2, height / 2, 'Memuat peta kampus...', {
-        fontSize: '18px',
-        color: '#ffffff',
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5);
-
-    this.time.delayedCall(100, () => {
-      text.destroy();
-      this.scene.start('CampusScene');
-    });
+    this.buildTileTextures();
+    this.buildPlayerFallback();
+    this.scene.start('CampusScene');
   }
 
-  // ── Tile textures ──────────────────────────────────────────────────────────
+  // ── Build individual tile textures ────────────────────────────────────────
 
-  private makeTileTextures(): void {
-    this.makeTile('tile_wall', (g) => {
-      // Dark blue-gray fill
-      g.fillStyle(0x3a3256);
-      g.fillRect(0, 0, T, T);
-      // Subtle top/left lighter edge for 3D feel
-      g.lineStyle(1, 0x5a4e80, 0.6);
-      g.beginPath();
-      g.moveTo(0, T);
-      g.lineTo(0, 0);
-      g.lineTo(T, 0);
-      g.strokePath();
-      // Darker bottom/right
-      g.lineStyle(1, 0x1e1830, 0.8);
-      g.beginPath();
-      g.moveTo(T, 0);
-      g.lineTo(T, T);
-      g.lineTo(0, T);
-      g.strokePath();
-    });
-
-    this.makeTile('tile_floor', (g) => {
-      g.fillStyle(0xc8b888);
-      g.fillRect(0, 0, T, T);
-      g.lineStyle(1, 0xb0a070, 0.35);
-      g.strokeRect(0, 0, T, T);
-    });
-
-    this.makeTile('tile_room', (g) => {
-      g.fillStyle(0xe8dcc8);
-      g.fillRect(0, 0, T, T);
-      g.lineStyle(1, 0xd4c8a8, 0.3);
-      g.strokeRect(0, 0, T, T);
-    });
-
-    this.makeTile('tile_library', (g) => {
-      g.fillStyle(0xaed4e8);
-      g.fillRect(0, 0, T, T);
-      g.lineStyle(1, 0x90bcd4, 0.35);
-      g.strokeRect(0, 0, T, T);
-    });
+  private buildTileTextures(): void {
+    this.buildWallTexture();
+    this.buildFloorTexture('tile_floor',   1.0,  1.0,  1.0);  // neutral corridor
+    this.buildFloorTexture('tile_room',    1.05, 1.02, 0.92); // warm cream (rooms)
+    this.buildFloorTexture('tile_library', 0.85, 1.05, 1.1);  // cool blue (library)
+    this.buildDoorTexture();
   }
 
-  private makeTile(
-    key: string,
-    draw: (g: Phaser.GameObjects.Graphics) => void,
-  ): void {
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-    draw(g);
-    g.generateTexture(key, T, T);
-    g.destroy();
+  private buildWallTexture(): void {
+    const rt = this.add.renderTexture(0, 0, T, T).setVisible(false);
+
+    // Very dark base — high contrast with all floor types
+    const bg = this.make.graphics({ x: 0, y: 0 }, false);
+    bg.fillStyle(0x14111f);
+    bg.fillRect(0, 0, T, T);
+    rt.draw(bg, 0, 0);
+    bg.destroy();
+
+    // Lighter top strip — "3D top of wall" look
+    const top = this.make.graphics({ x: 0, y: 0 }, false);
+    top.fillStyle(0x2e2850);
+    top.fillRect(0, 0, T, 6);
+    rt.draw(top, 0, 0);
+    top.destroy();
+
+    rt.saveTexture('tile_wall');
+    rt.destroy();
   }
 
-  // ── Player fallback texture ───────────────────────────────────────────────
+  private buildFloorTexture(key: string, r: number, g: number, b: number): void {
+    const rt = this.add.renderTexture(0, 0, T, T).setVisible(false);
 
-  private makePlayerTexture(): void {
+    // Tile floor_0.png (16×16) four times to fill 32×32
+    const tmp = this.make.image({ x: 0, y: 0, key: 'floor_tile' }, false);
+    const tint = Phaser.Display.Color.GetColor(
+      Math.min(255, Math.round(255 * r)),
+      Math.min(255, Math.round(255 * g)),
+      Math.min(255, Math.round(255 * b)),
+    );
+    tmp.setTint(tint);
+    for (let ty = 0; ty < 2; ty++)
+      for (let tx = 0; tx < 2; tx++)
+        rt.draw(tmp, tx * 16, ty * 16);
+    tmp.destroy();
+
+    rt.saveTexture(key);
+    rt.destroy();
+  }
+
+  private buildDoorTexture(): void {
+    const rt = this.add.renderTexture(0, 0, T, T).setVisible(false);
+
+    // Same floor base
+    const tmp = this.make.image({ x: 0, y: 0, key: 'floor_tile' }, false);
+    for (let ty = 0; ty < 2; ty++)
+      for (let tx = 0; tx < 2; tx++)
+        rt.draw(tmp, tx * 16, ty * 16);
+    tmp.destroy();
+
+    // Bright orange stripe — unmistakable "doorway" marker
+    const stripe = this.make.graphics({ x: 0, y: 0 }, false);
+    stripe.fillStyle(0xf0a020, 0.85);
+    stripe.fillRect(2, 11, T - 4, 10);
+    rt.draw(stripe, 0, 0);
+    stripe.destroy();
+
+    rt.saveTexture('tile_door');
+    rt.destroy();
+  }
+
+  private buildPlayerFallback(): void {
     const size = 24;
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-
-    // Body (shirt)
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
     g.fillStyle(0x4a90d9);
-    g.fillRect(6, 10, 12, 10);
-
-    // Head
-    g.fillStyle(0xf5c5a0);
-    g.fillCircle(12, 7, 6);
-
-    // Eyes
-    g.fillStyle(0x333333);
-    g.fillRect(9, 6, 2, 2);
-    g.fillRect(13, 6, 2, 2);
-
-    // Legs
-    g.fillStyle(0x2c3e50);
-    g.fillRect(7, 20, 4, 3);
-    g.fillRect(13, 20, 4, 3);
-
-    g.generateTexture('player', size, size);
-    g.destroy();
-  }
-
-  // ── Small door sign texture ───────────────────────────────────────────────
-
-  private makeSignTexture(): void {
-    const w = 8, h = 10;
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-    g.fillStyle(0xf0d060);
-    g.fillRect(0, 0, w, h);
-    g.lineStyle(1, 0xc0a030, 1);
-    g.strokeRect(0, 0, w, h);
-    g.generateTexture('sign', w, h);
+    g.fillCircle(size / 2, size / 2, size / 2 - 2);
+    g.fillStyle(0xffffff, 0.5);
+    g.fillCircle(size / 2 - 4, size / 2 - 4, 4);
+    g.generateTexture('player_fallback', size, size);
     g.destroy();
   }
 }

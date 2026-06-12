@@ -10,48 +10,37 @@ import {
 } from '../map/campusLayout';
 
 const T = TILE_SIZE;
-const PLAYER_RADIUS = T * 0.35; // collision box (slightly smaller than tile)
-const PLAYER_SPEED = 160;       // px/s
-const INTERACT_DIST = T * 2.2;  // distance to trigger "Press E"
-
-// ─────────────────────────────────────────────────────────────────────────────
+const PLAYER_SPEED = 150;      // px/s
+const PLAYER_R     = T * 0.32; // collision radius
+const INTERACT_R   = T * 2.2;  // "Press E" detection radius
 
 export class CampusScene extends Phaser.Scene {
   private mapData!: number[][];
   private player!: Phaser.GameObjects.Image;
 
-  private keys!: {
+  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private wasd!: {
     up: Phaser.Input.Keyboard.Key;
     down: Phaser.Input.Keyboard.Key;
     left: Phaser.Input.Keyboard.Key;
     right: Phaser.Input.Keyboard.Key;
-    w: Phaser.Input.Keyboard.Key;
-    s: Phaser.Input.Keyboard.Key;
-    a: Phaser.Input.Keyboard.Key;
-    d: Phaser.Input.Keyboard.Key;
-    e: Phaser.Input.Keyboard.Key;
-    esc: Phaser.Input.Keyboard.Key;
   };
+  private keyE!: Phaser.Input.Keyboard.Key;
+  private keyEsc!: Phaser.Input.Keyboard.Key;
 
-  // UI elements (fixed to camera)
   private promptText!: Phaser.GameObjects.Text;
   private infoPanel!: Phaser.GameObjects.Container;
-  private infoPanelVisible = false;
-
+  private panelOpen = false;
   private nearbyRoom: RoomInfo | null = null;
 
   constructor() {
     super({ key: 'CampusScene' });
   }
 
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
-
   create(): void {
     this.mapData = buildCampusMap();
-
     this.renderMap();
     this.addRoomLabels();
-    this.addDoorSigns();
     this.createPlayer();
     this.setupCamera();
     this.setupInput();
@@ -59,289 +48,195 @@ export class CampusScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    if (this.infoPanelVisible) return; // freeze player while info is open
-
-    this.handleMovement(delta / 1000);
-    this.checkNearbyRooms();
-    this.updatePrompt();
+    if (this.panelOpen) return;
+    this.movePlayer(delta / 1000);
+    this.checkNearby();
+    this.refreshPrompt();
   }
-
-  // ── Map Rendering ──────────────────────────────────────────────────────────
 
   private renderMap(): void {
-    const tileKeys = ['tile_wall', 'tile_floor', 'tile_room', 'tile_library'] as const;
-
-    // Render entire map to a single RenderTexture (1 draw call)
+    const tileKey: Record<number, string> = {
+      [TILE.WALL]:    'tile_wall',
+      [TILE.FLOOR]:   'tile_floor',
+      [TILE.ROOM]:    'tile_room',
+      [TILE.LIBRARY]: 'tile_library',
+      [TILE.DOOR]:    'tile_door',
+    };
     const rt = this.add.renderTexture(0, 0, MAP_COLS * T, MAP_ROWS * T);
-    for (let row = 0; row < MAP_ROWS; row++) {
-      for (let col = 0; col < MAP_COLS; col++) {
-        const tileType = this.mapData[row][col];
-        rt.draw(tileKeys[tileType], col * T, row * T);
-      }
-    }
+    for (let row = 0; row < MAP_ROWS; row++)
+      for (let col = 0; col < MAP_COLS; col++)
+        rt.draw(tileKey[this.mapData[row][col]], col * T, row * T);
   }
-
-  // ── Room Labels ───────────────────────────────────────────────────────────
 
   private addRoomLabels(): void {
     for (const room of ROOMS) {
-      const x = room.labelCol * T + T / 2;
-      const y = room.labelRow * T + T / 2;
-
-      this.add.text(x, y, room.name, {
-        fontSize: '9px',
-        color: room.id === 'perpustakaan' ? '#1a3a5c' : '#4a3020',
-        fontFamily: 'monospace',
-        align: 'center',
-        wordWrap: { width: T * 6 },
-      }).setOrigin(0.5).setAlpha(0.85);
+      const isLib = room.id === 'perpustakaan';
+      this.add
+        .text(room.labelCol * T + T / 2, room.labelRow * T + T / 2, room.name, {
+          fontSize: '9px',
+          color: isLib ? '#1a3a5c' : '#3a2010',
+          fontFamily: 'monospace',
+          align: 'center',
+          wordWrap: { width: T * 5.5 },
+        })
+        .setOrigin(0.5)
+        .setAlpha(0.9)
+        .setDepth(5);
     }
   }
-
-  // ── Door Signs ────────────────────────────────────────────────────────────
-
-  private addDoorSigns(): void {
-    for (const room of ROOMS) {
-      const x = room.triggerCol * T + T / 2;
-      const y = (room.triggerRow - 1) * T + T / 2;
-      this.add.image(x, y, 'sign').setAlpha(0.7);
-    }
-  }
-
-  // ── Player ────────────────────────────────────────────────────────────────
 
   private createPlayer(): void {
-    const startCol = 19;
-    const startRow = 9; // top corridor, near center
-    const x = startCol * T + T / 2;
-    const y = startRow * T + T / 2;
-
-    const texture = this.textures.exists('char') ? 'char' : 'player';
-    this.player = this.add.image(x, y, texture).setDepth(10);
-
-    if (texture === 'char') {
-      this.player.setScale(2); // pixel art — scale up
-    }
+    const col = 19, row = 9;
+    const hasChar = this.textures.exists('char');
+    this.player = this.add
+      .image(col * T + T / 2, row * T + T / 2, hasChar ? 'char' : 'player_fallback')
+      .setDepth(10);
+    if (hasChar) this.player.setScale(2).setFrame(0);
   }
-
-  // ── Camera ────────────────────────────────────────────────────────────────
 
   private setupCamera(): void {
     this.cameras.main
       .setBounds(0, 0, MAP_COLS * T, MAP_ROWS * T)
-      .startFollow(this.player, true, 0.1, 0.1) // smooth follow
-      .setZoom(1.8);
+      .startFollow(this.player, true) // no lerp = no visual lag
+      .setZoom(2);
   }
-
-  // ── Input ─────────────────────────────────────────────────────────────────
 
   private setupInput(): void {
     const kb = this.input.keyboard!;
-    this.keys = {
-      up:    kb.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
-      down:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
-      left:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
-      right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
-      w:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      s:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      a:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-      d:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      e:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
-      esc:   kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
+    this.cursors = kb.createCursorKeys();
+    this.wasd = {
+      up:    kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+      down:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+      left:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+      right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     };
-
-    this.keys.e.on('down', () => this.handleInteract());
-    this.keys.esc.on('down', () => this.closeInfoPanel());
+    this.keyE   = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.keyE.on('down', () => this.handleE());
+    this.keyEsc.on('down', () => this.closePanel());
   }
 
-  // ── Movement ──────────────────────────────────────────────────────────────
+  // ── Movement: check all 4 corners, separate X/Y → smooth wall-sliding ──
+  private movePlayer(dt: number): void {
+    const goLeft  = this.cursors.left.isDown  || this.wasd.left.isDown;
+    const goRight = this.cursors.right.isDown || this.wasd.right.isDown;
+    const goUp    = this.cursors.up.isDown    || this.wasd.up.isDown;
+    const goDown  = this.cursors.down.isDown  || this.wasd.down.isDown;
 
-  private handleMovement(dt: number): void {
-    let dx = 0, dy = 0;
-
-    if (this.keys.left.isDown  || this.keys.a.isDown)  dx -= 1;
-    if (this.keys.right.isDown || this.keys.d.isDown)  dx += 1;
-    if (this.keys.up.isDown    || this.keys.w.isDown)  dy -= 1;
-    if (this.keys.down.isDown  || this.keys.s.isDown)  dy += 1;
-
+    let dx = (goRight ? 1 : 0) - (goLeft ? 1 : 0);
+    let dy = (goDown  ? 1 : 0) - (goUp   ? 1 : 0);
     if (dx === 0 && dy === 0) return;
 
-    // Normalise diagonal movement
     const len = Math.sqrt(dx * dx + dy * dy);
-    const moveX = (dx / len) * PLAYER_SPEED * dt;
-    const moveY = (dy / len) * PLAYER_SPEED * dt;
+    dx = (dx / len) * PLAYER_SPEED * dt;
+    dy = (dy / len) * PLAYER_SPEED * dt;
 
-    const nx = this.player.x + moveX;
-    const ny = this.player.y + moveY;
+    const { x, y } = this.player;
+    const r = PLAYER_R;
 
-    // Separate X / Y checks → smooth wall sliding
-    if (this.isWalkable(nx, this.player.y - PLAYER_RADIUS) &&
-        this.isWalkable(nx, this.player.y + PLAYER_RADIUS)) {
-      this.player.x = nx;
-    }
-    if (this.isWalkable(this.player.x - PLAYER_RADIUS, ny) &&
-        this.isWalkable(this.player.x + PLAYER_RADIUS, ny)) {
-      this.player.y = ny;
-    }
+    const nx = x + dx;
+    if (
+      this.walkable(nx - r, y - r) && this.walkable(nx + r, y - r) &&
+      this.walkable(nx - r, y + r) && this.walkable(nx + r, y + r)
+    ) this.player.x = nx;
+
+    const ny = y + dy;
+    if (
+      this.walkable(this.player.x - r, ny - r) && this.walkable(this.player.x + r, ny - r) &&
+      this.walkable(this.player.x - r, ny + r) && this.walkable(this.player.x + r, ny + r)
+    ) this.player.y = ny;
   }
 
-  private isWalkable(worldX: number, worldY: number): boolean {
-    const col = Math.floor(worldX / T);
-    const row = Math.floor(worldY / T);
+  private walkable(wx: number, wy: number): boolean {
+    const col = Math.floor(wx / T);
+    const row = Math.floor(wy / T);
     if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return false;
     return this.mapData[row][col] !== TILE.WALL;
   }
 
-  // ── Proximity Detection ───────────────────────────────────────────────────
-
-  private checkNearbyRooms(): void {
+  private checkNearby(): void {
     let closest: RoomInfo | null = null;
     let minDist = Infinity;
-
     for (const room of ROOMS) {
       const tx = room.triggerCol * T + T / 2;
       const ty = room.triggerRow * T + T / 2;
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty);
-      if (dist < INTERACT_DIST && dist < minDist) {
-        minDist = dist;
-        closest = room;
-      }
+      const d  = Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty);
+      if (d < INTERACT_R && d < minDist) { minDist = d; closest = room; }
     }
-
     this.nearbyRoom = closest;
   }
-
-  // ── UI ────────────────────────────────────────────────────────────────────
 
   private createUI(): void {
     const { width, height } = this.scale;
 
-    // "Press E" prompt — fixed to camera
     this.promptText = this.add
-      .text(width / 2, height - 48, '', {
-        fontSize: '13px',
-        color: '#ffffff',
+      .text(width / 2, height - 44, '', {
+        fontSize: '12px', color: '#ffffff',
         backgroundColor: '#00000099',
-        padding: { x: 12, y: 6 },
-        fontFamily: 'monospace',
+        padding: { x: 14, y: 7 }, fontFamily: 'monospace',
       })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(100)
-      .setVisible(false);
+      .setOrigin(0.5).setScrollFactor(0).setDepth(100).setVisible(false);
 
-    // Controls hint (bottom-left)
-    this.add
-      .text(12, height - 16, 'WASD / ↑↓←→  Gerak    E  Info ruangan    ESC  Tutup', {
-        fontSize: '10px',
-        color: '#aaaaaa',
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0, 1)
-      .setScrollFactor(0)
-      .setDepth(100);
+    this.add.text(10, height - 10,
+      'WASD / ↑↓←→  Jalan    E  Info ruangan    ESC  Tutup', {
+        fontSize: '9px', color: '#777777', fontFamily: 'monospace',
+      }).setOrigin(0, 1).setScrollFactor(0).setDepth(100);
 
-    // Title
-    this.add
-      .text(12, 12, 'Kampus Cakrawala', {
-        fontSize: '14px',
-        color: '#f0d060',
-        fontFamily: 'monospace',
-        fontStyle: 'bold',
-      })
-      .setScrollFactor(0)
-      .setDepth(100);
+    this.add.text(10, 10, 'Kampus Cakrawala', {
+      fontSize: '13px', color: '#f0d060', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setScrollFactor(0).setDepth(100);
 
-    // Info panel (hidden initially)
-    this.infoPanel = this.buildInfoPanel();
+    this.infoPanel = this.buildInfoPanel(width, height);
   }
 
-  private buildInfoPanel(): Phaser.GameObjects.Container {
-    const { width, height } = this.scale;
-    const panelW = Math.min(360, width - 40);
-    const panelH = 180;
-    const panelX = (width - panelW) / 2;
-    const panelY = (height - panelH) / 2;
+  private buildInfoPanel(width: number, height: number): Phaser.GameObjects.Container {
+    const pw = Math.min(380, width - 48);
+    const ph = 200;
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x0d0b1a, 0.92);
-    bg.fillRoundedRect(0, 0, panelW, panelH, 8);
-    bg.lineStyle(2, 0xf0d060, 0.8);
-    bg.strokeRoundedRect(0, 0, panelW, panelH, 8);
+    bg.fillStyle(0x0d0b1a, 0.94);
+    bg.fillRoundedRect(0, 0, pw, ph, 10);
+    bg.lineStyle(2, 0xf0d060, 0.85);
+    bg.strokeRoundedRect(0, 0, pw, ph, 10);
 
-    const titleText = this.add
-      .text(panelW / 2, 20, '', {
-        fontSize: '16px',
-        color: '#f0d060',
-        fontFamily: 'monospace',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5, 0)
-      .setName('title');
+    const title = this.add.text(pw / 2, 22, '', {
+      fontSize: '15px', color: '#f0d060', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setName('title');
 
-    const descText = this.add
-      .text(panelW / 2, 50, '', {
-        fontSize: '11px',
-        color: '#e0e0e0',
-        fontFamily: 'monospace',
-        align: 'center',
-        wordWrap: { width: panelW - 32 },
-        lineSpacing: 4,
-      })
-      .setOrigin(0.5, 0)
-      .setName('desc');
+    const desc = this.add.text(pw / 2, 52, '', {
+      fontSize: '11px', color: '#e0e0d0', fontFamily: 'monospace',
+      align: 'center', wordWrap: { width: pw - 40 }, lineSpacing: 5,
+    }).setOrigin(0.5, 0).setName('desc');
 
-    const closeHint = this.add
-      .text(panelW / 2, panelH - 20, '[ ESC ] Tutup', {
-        fontSize: '10px',
-        color: '#888888',
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5, 1);
+    const hint = this.add.text(pw / 2, ph - 18, '[ ESC ]  Tutup', {
+      fontSize: '9px', color: '#555555', fontFamily: 'monospace',
+    }).setOrigin(0.5, 1);
 
-    const container = this.add
-      .container(panelX, panelY, [bg, titleText, descText, closeHint])
-      .setScrollFactor(0)
-      .setDepth(200)
-      .setVisible(false);
-
-    return container;
+    return this.add
+      .container((width - pw) / 2, (height - ph) / 2, [bg, title, desc, hint])
+      .setScrollFactor(0).setDepth(200).setVisible(false);
   }
 
-  private updatePrompt(): void {
+  private refreshPrompt(): void {
     if (this.nearbyRoom) {
-      this.promptText
-        .setText(`[E] Lihat info — ${this.nearbyRoom.name}`)
-        .setVisible(true);
+      this.promptText.setText(`[E]  ${this.nearbyRoom.name}`).setVisible(true);
     } else {
       this.promptText.setVisible(false);
     }
   }
 
-  // ── Interaction ───────────────────────────────────────────────────────────
-
-  private handleInteract(): void {
-    if (this.infoPanelVisible) {
-      this.closeInfoPanel();
-      return;
-    }
+  private handleE(): void {
+    if (this.panelOpen) { this.closePanel(); return; }
     if (!this.nearbyRoom) return;
-    this.openInfoPanel(this.nearbyRoom);
-  }
-
-  private openInfoPanel(room: RoomInfo): void {
-    const title = this.infoPanel.getByName('title') as Phaser.GameObjects.Text;
-    const desc  = this.infoPanel.getByName('desc')  as Phaser.GameObjects.Text;
-    title.setText(room.name);
-    desc.setText(room.description);
-
+    (this.infoPanel.getByName('title') as Phaser.GameObjects.Text).setText(this.nearbyRoom.name);
+    (this.infoPanel.getByName('desc')  as Phaser.GameObjects.Text).setText(this.nearbyRoom.description);
     this.infoPanel.setVisible(true);
     this.promptText.setVisible(false);
-    this.infoPanelVisible = true;
+    this.panelOpen = true;
   }
 
-  private closeInfoPanel(): void {
+  private closePanel(): void {
     this.infoPanel.setVisible(false);
-    this.infoPanelVisible = false;
+    this.panelOpen = false;
   }
 }

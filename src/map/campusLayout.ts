@@ -4,6 +4,7 @@ export const TILE = {
   FLOOR: 1,
   ROOM: 2,
   LIBRARY: 3,
+  DOOR: 4,   // walkable, visually distinct door threshold
 } as const;
 
 export type TileType = (typeof TILE)[keyof typeof TILE];
@@ -130,7 +131,7 @@ function drawRoom(
 }
 
 function door(map: number[][], r: number, c: number): void {
-  map[r][c] = TILE.FLOOR;
+  map[r][c] = TILE.DOOR;
 }
 
 export function buildCampusMap(): number[][] {
