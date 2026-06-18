@@ -14,9 +14,19 @@ const PLAYER_SPEED = 150;      // px/s
 const PLAYER_R     = T * 0.32; // collision radius
 const INTERACT_R   = T * 2.2;  // "Press E" detection radius
 
+// char_0.png row layout: 7 frames per row × 6 rows = 42 frames
+// Row 0 (0–6)  : walk south, Row 1 (7–13) : walk west
+// Row 2 (14–20): walk east,  Row 3 (21–27): walk north
+const ANIM_FRAMES = {
+  'walk-down':  { start:  0, end:  6 },
+  'walk-left':  { start:  7, end: 13 },
+  'walk-right': { start: 14, end: 20 },
+  'walk-up':    { start: 21, end: 27 },
+} as const;
+
 export class CampusScene extends Phaser.Scene {
   private mapData!: number[][];
-  private player!: Phaser.GameObjects.Image;
+  private player!: Phaser.GameObjects.Sprite;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: {
@@ -41,7 +51,9 @@ export class CampusScene extends Phaser.Scene {
     this.mapData = buildCampusMap();
     this.renderMap();
     this.addRoomLabels();
+    this.debugRoomCorners();
     this.createPlayer();
+    this.setupAnimations();
     this.setupCamera();
     this.setupInput();
     this.createUI();
@@ -54,6 +66,52 @@ export class CampusScene extends Phaser.Scene {
     this.refreshPrompt();
   }
 
+  // DEBUG: yellow markers at each room's 4 wall-boundary corners.
+  // Remove once visual/collision mismatch is confirmed fixed.
+  // Each label marks the world pixel (col*T, row*T) — the tile-grid corner.
+  private debugRoomCorners(): void {
+    // [row, col, letter] — ordered A-Z then a-r, one letter per room corner
+    const corners: [number, number, string][] = [
+      // Kelas 101
+      [1,1,'A'], [1,9,'B'], [8,1,'C'], [8,9,'D'],
+      // Kelas 102
+      [1,10,'E'], [1,18,'F'], [8,10,'G'], [8,18,'H'],
+      // Ruang Dosen
+      [1,19,'I'], [1,27,'J'], [8,19,'K'], [8,27,'L'],
+      // Lab Komputer
+      [1,28,'M'], [1,36,'N'], [8,28,'O'], [8,36,'P'],
+      // Kantin
+      [11,1,'Q'], [11,8,'R'], [21,1,'S'], [21,8,'T'],
+      // Perpustakaan
+      [11,13,'U'], [11,24,'V'], [20,13,'W'], [20,24,'X'],
+      // Tata Usaha
+      [11,29,'Y'], [11,36,'Z'], [21,29,'a'], [21,36,'b'],
+      // Musholla
+      [23,1,'c'], [23,9,'d'], [31,1,'e'], [31,9,'f'],
+      // Aula
+      [23,10,'g'], [23,18,'h'], [31,10,'i'], [31,18,'j'],
+      // UKM
+      [23,19,'k'], [23,27,'l'], [31,19,'m'], [31,27,'n'],
+      // Ruang Rapat
+      [23,28,'o'], [23,36,'p'], [31,28,'q'], [31,36,'r'],
+    ];
+
+    const g = this.add.graphics().setDepth(50);
+    for (const [row, col, label] of corners) {
+      const wx = col * T;
+      const wy = row * T;
+      g.fillStyle(0xffee00, 1);
+      g.fillRect(wx - 3, wy - 3, 6, 6);
+      this.add.text(wx + 3, wy - 9, label, {
+        fontSize: '9px',
+        color: '#ffee00',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 2,
+      }).setDepth(50);
+    }
+  }
+
   private renderMap(): void {
     const tileKey: Record<number, string> = {
       [TILE.WALL]:    'tile_wall',
@@ -62,10 +120,12 @@ export class CampusScene extends Phaser.Scene {
       [TILE.LIBRARY]: 'tile_library',
       [TILE.DOOR]:    'tile_door',
     };
+    // drawFrame draws from top-left, unlike draw(key,x,y) which centers at (x,y).
+    // Centering would shift every tile by -T/2 in both axes → 16px visual/collision mismatch.
     const rt = this.add.renderTexture(0, 0, MAP_COLS * T, MAP_ROWS * T);
     for (let row = 0; row < MAP_ROWS; row++)
       for (let col = 0; col < MAP_COLS; col++)
-        rt.draw(tileKey[this.mapData[row][col]], col * T, row * T);
+        rt.drawFrame(tileKey[this.mapData[row][col]], undefined, col * T, row * T);
   }
 
   private addRoomLabels(): void {
@@ -86,19 +146,34 @@ export class CampusScene extends Phaser.Scene {
   }
 
   private createPlayer(): void {
-    const col = 19, row = 9;
+    // Spawn inside the library center — gives the best overview of the campus
+    // and allows free north/south movement through the library doors.
+    const col = 19, row = 16;
     const hasChar = this.textures.exists('char');
     this.player = this.add
-      .image(col * T + T / 2, row * T + T / 2, hasChar ? 'char' : 'player_fallback')
+      .sprite(col * T + T / 2, row * T + T / 2, hasChar ? 'char' : 'player_fallback')
       .setDepth(10);
-    if (hasChar) this.player.setScale(2).setFrame(0);
+    if (hasChar) this.player.setScale(2);
+  }
+
+  private setupAnimations(): void {
+    if (!this.textures.exists('char')) return;
+    for (const [key, { start, end }] of Object.entries(ANIM_FRAMES)) {
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers('char', { start, end }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
   }
 
   private setupCamera(): void {
     this.cameras.main
       .setBounds(0, 0, MAP_COLS * T, MAP_ROWS * T)
-      .startFollow(this.player, true) // no lerp = no visual lag
-      .setZoom(2);
+      .startFollow(this.player, true)
+      // zoom 1.0 → shows 30×20 tiles (79% × 63% of the 38×32 map) — good campus overview
+      .setZoom(1.0);
   }
 
   private setupInput(): void {
@@ -116,16 +191,30 @@ export class CampusScene extends Phaser.Scene {
     this.keyEsc.on('down', () => this.closePanel());
   }
 
-  // ── Movement: check all 4 corners, separate X/Y → smooth wall-sliding ──
+  // ── Movement: separate X/Y checks → smooth wall-sliding ──────────────────
   private movePlayer(dt: number): void {
     const goLeft  = this.cursors.left.isDown  || this.wasd.left.isDown;
     const goRight = this.cursors.right.isDown || this.wasd.right.isDown;
     const goUp    = this.cursors.up.isDown    || this.wasd.up.isDown;
     const goDown  = this.cursors.down.isDown  || this.wasd.down.isDown;
 
+    const hasChar = this.textures.exists('char');
+
     let dx = (goRight ? 1 : 0) - (goLeft ? 1 : 0);
     let dy = (goDown  ? 1 : 0) - (goUp   ? 1 : 0);
-    if (dx === 0 && dy === 0) return;
+
+    if (dx === 0 && dy === 0) {
+      if (hasChar) this.player.stop();
+      return;
+    }
+
+    // Play directional walk animation
+    if (hasChar) {
+      if      (dx < 0) this.player.play('walk-left',  true);
+      else if (dx > 0) this.player.play('walk-right', true);
+      else if (dy < 0) this.player.play('walk-up',    true);
+      else              this.player.play('walk-down',  true);
+    }
 
     const len = Math.sqrt(dx * dx + dy * dy);
     dx = (dx / len) * PLAYER_SPEED * dt;
@@ -228,6 +317,7 @@ export class CampusScene extends Phaser.Scene {
   private handleE(): void {
     if (this.panelOpen) { this.closePanel(); return; }
     if (!this.nearbyRoom) return;
+    if (this.textures.exists('char')) this.player.stop();
     (this.infoPanel.getByName('title') as Phaser.GameObjects.Text).setText(this.nearbyRoom.name);
     (this.infoPanel.getByName('desc')  as Phaser.GameObjects.Text).setText(this.nearbyRoom.description);
     this.infoPanel.setVisible(true);

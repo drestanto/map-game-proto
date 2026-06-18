@@ -80,7 +80,7 @@ export const ROOMS: RoomInfo[] = [
     name: 'Perpustakaan',
     description: 'Perpustakaan Kampus Cakrawala\nKoleksi: 10.000+ buku & jurnal\nBuka: Senin–Sabtu 08:00–20:00\nFasilitas: area baca, WiFi, komputer',
     labelCol: 18, labelRow: 15,
-    triggerCol: 18, triggerRow: 12,
+    triggerCol: 18, triggerRow: 10,  // just outside north door in corridor
   },
 
   // ── Bottom Row ──
@@ -157,17 +157,23 @@ export function buildCampusMap(): number[][] {
   door(map, 8, 22); door(map, 8, 23);
   door(map, 8, 32); door(map, 8, 33);
 
-  // ── Side Rooms (rows 9–22) ──────────────────────────────────────────────
-  drawRoom(map, 9, 1, 22, 8);   // Kantin  (left)
+  // ── Side Rooms (rows 11–21) ─────────────────────────────────────────────
+  // Start at row 11 (not 9) so rows 9–10 form a clear horizontal corridor
+  // giving access to all 4 top-room doors (cols 4-5, 13-14, 22-23, 32-33).
+  // End at row 21 (not 22) so row 22 stays open as a clear corridor giving
+  // access to Musholla (cols 4-5) and Ruang Rapat (cols 32-33) doors below.
+  drawRoom(map, 11, 1, 21, 8);  // Kantin  (left)
   door(map, 15, 8); door(map, 16, 8);  // east door
 
-  drawRoom(map, 9, 29, 22, 36); // Tata Usaha (right)
+  drawRoom(map, 11, 29, 21, 36); // Tata Usaha (right)
   door(map, 15, 29); door(map, 16, 29); // west door
 
   // ── Library — center building ────────────────────────────────────────────
   drawRoom(map, 11, 13, 20, 24, TILE.LIBRARY);
-  door(map, 11, 18); door(map, 11, 19); // north door
-  door(map, 20, 18); door(map, 20, 19); // south door
+  // 4-tile doors (cols 17-20) give 3.36 tiles effective passthrough vs
+  // 1.36 tiles for 2-tile doors — prevents corner-trapping near door frames.
+  door(map, 11, 17); door(map, 11, 18); door(map, 11, 19); door(map, 11, 20); // north door
+  door(map, 20, 17); door(map, 20, 18); door(map, 20, 19); door(map, 20, 20); // south door
 
   // ── Bottom Rooms (rows 23–31) ───────────────────────────────────────────
   drawRoom(map, 23, 1, 31, 9);   // Musholla

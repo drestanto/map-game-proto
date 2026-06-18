@@ -3,21 +3,35 @@ import { TILE_SIZE } from '../map/campusLayout';
 
 const T = TILE_SIZE;
 
+// Tile index → floor asset key (matches pixel-agents floor numbering)
+// floor_0: light stone corridor
+// floor_3: grid tile (classrooms/offices)
+// floor_7: dark checker (library)
+const FLOOR_FOR_TYPE: Record<string, string> = {
+  tile_floor:   'floor_0',
+  tile_room:    'floor_3',
+  tile_library: 'floor_7',
+};
+
 export class PreloadScene extends Phaser.Scene {
   constructor() {
     super({ key: 'PreloadScene' });
   }
 
   preload(): void {
-    // ── Pixel-agents assets ──────────────────────────────────────────────────
     // char_0.png: 112×96 → 7 cols × 6 rows of 16×16 frames
+    // Row 0 = walk-down, row 1 = walk-left, row 2 = walk-right, row 3 = walk-up
     this.load.spritesheet('char', 'assets/characters/char_0.png', {
       frameWidth: 16,
       frameHeight: 16,
     });
-    // floor tile: 16×16 pixel art floor
-    this.load.image('floor_tile', 'assets/floors/floor_0.png');
-    // wall sheet: 64×128 → 4 cols × 8 rows of 16×16 (16 bitmask variants)
+
+    // Pixel-agents floor tiles (16×16 each, tiled 2×2 to fill 32×32)
+    this.load.image('floor_0', 'assets/floors/floor_0.png'); // light stone — corridors
+    this.load.image('floor_3', 'assets/floors/floor_3.png'); // grid tile  — rooms
+    this.load.image('floor_7', 'assets/floors/floor_7.png'); // dark check — library
+
+    // Wall spritesheet retained for potential bitmask use later
     this.load.spritesheet('wall_sheet', 'assets/walls/wall_0.png', {
       frameWidth: 16,
       frameHeight: 16,
@@ -30,27 +44,25 @@ export class PreloadScene extends Phaser.Scene {
     this.scene.start('CampusScene');
   }
 
-  // ── Build individual tile textures ────────────────────────────────────────
+  // ── Build tile textures ───────────────────────────────────────────────────
 
   private buildTileTextures(): void {
     this.buildWallTexture();
-    this.buildFloorTexture('tile_floor',   1.0,  1.0,  1.0);  // neutral corridor
-    this.buildFloorTexture('tile_room',    1.05, 1.02, 0.92); // warm cream (rooms)
-    this.buildFloorTexture('tile_library', 0.85, 1.05, 1.1);  // cool blue (library)
+    for (const [key, floorKey] of Object.entries(FLOOR_FOR_TYPE))
+      this.buildFloorTexture(key, floorKey);
     this.buildDoorTexture();
   }
 
   private buildWallTexture(): void {
     const rt = this.add.renderTexture(0, 0, T, T).setVisible(false);
 
-    // Very dark base — high contrast with all floor types
     const bg = this.make.graphics({ x: 0, y: 0 }, false);
     bg.fillStyle(0x14111f);
     bg.fillRect(0, 0, T, T);
     rt.draw(bg, 0, 0);
     bg.destroy();
 
-    // Lighter top strip — "3D top of wall" look
+    // Top edge highlight gives a top-down "wall thickness" illusion
     const top = this.make.graphics({ x: 0, y: 0 }, false);
     top.fillStyle(0x2e2850);
     top.fillRect(0, 0, T, 6);
@@ -61,22 +73,15 @@ export class PreloadScene extends Phaser.Scene {
     rt.destroy();
   }
 
-  private buildFloorTexture(key: string, r: number, g: number, b: number): void {
+  // Tile a 16×16 pixel-agents floor image 2×2 to fill 32×32.
+  // IMPORTANT: must use drawFrame (not draw(image,...)) so tiles are drawn
+  // top-left aligned. draw(Image) uses the image's origin (0.5,0.5) by
+  // default → tiles only cover 24×24 of the 32×32 RT → visual/collision mismatch.
+  private buildFloorTexture(key: string, floorKey: string): void {
     const rt = this.add.renderTexture(0, 0, T, T).setVisible(false);
-
-    // Tile floor_0.png (16×16) four times to fill 32×32
-    const tmp = this.make.image({ x: 0, y: 0, key: 'floor_tile' }, false);
-    const tint = Phaser.Display.Color.GetColor(
-      Math.min(255, Math.round(255 * r)),
-      Math.min(255, Math.round(255 * g)),
-      Math.min(255, Math.round(255 * b)),
-    );
-    tmp.setTint(tint);
     for (let ty = 0; ty < 2; ty++)
       for (let tx = 0; tx < 2; tx++)
-        rt.draw(tmp, tx * 16, ty * 16);
-    tmp.destroy();
-
+        rt.drawFrame(floorKey, undefined, tx * 16, ty * 16);
     rt.saveTexture(key);
     rt.destroy();
   }
@@ -84,14 +89,10 @@ export class PreloadScene extends Phaser.Scene {
   private buildDoorTexture(): void {
     const rt = this.add.renderTexture(0, 0, T, T).setVisible(false);
 
-    // Same floor base
-    const tmp = this.make.image({ x: 0, y: 0, key: 'floor_tile' }, false);
     for (let ty = 0; ty < 2; ty++)
       for (let tx = 0; tx < 2; tx++)
-        rt.draw(tmp, tx * 16, ty * 16);
-    tmp.destroy();
+        rt.drawFrame('floor_0', undefined, tx * 16, ty * 16);
 
-    // Bright orange stripe — unmistakable "doorway" marker
     const stripe = this.make.graphics({ x: 0, y: 0 }, false);
     stripe.fillStyle(0xf0a020, 0.85);
     stripe.fillRect(2, 11, T - 4, 10);
