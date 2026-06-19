@@ -174,24 +174,43 @@ Tiap item adalah PNG terpisah per orientasi (FRONT/BACK/SIDE).
 - Items di atas desk (PC): taruh di koordinat sama dengan desk, depth otomatis overlap dengan benar
 - Jangan taruh furniture di tile WALL atau koridor — cuma tile ROOM/LIBRARY/FLOOR
 
-## NPC & Furniture
+## NPC System
 
-### Static NPCs (`char_1`–`char_5`)
-- Dimuat di PreloadScene sebagai spritesheet (16×16 frame, sama dengan char_0)
-- Ditempatkan di `CampusScene.addRoomObjects()`, depth 40
-- Frame: 0=south, 7=west, 14=east, 21=north
-- Scale 2× → tampil 32×32
-- Tiap ruangan punya 2–4 NPC
+### Sprites (`char_1`–`char_5`)
+- Spritesheet 112×96 → frame 16×32, 3 rows × 7 cols = 21 frames
+- Frame 0=south, 7=north, 14=east, 14+flipX=west
+- Scale 2× → tampil 32×64 (1×2 tile)
+- Dibuat & dikelola di `CampusScene.addRoomObjects()` → disimpan di `this.npcList`
 
-### Furniture (Phaser Graphics, depth 7)
-- Kelas 101/102/Dosen/Lab: meja kuliah 2 baris × 3 meja
-- Library: rak buku di dinding utara & selatan + meja baca
-- Kantin: meja kasir panjang + 4 meja makan
-- Tata Usaha: meja resepsionis panjang
-- Musholla: sajadah 4×4 (hijau)
-- Aula: panggung/podium
-- Ruang Rapat: meja konferensi
-- UKM: sofa/meja santai (biru)
+### NPC Behavior (rule-based, bukan AI)
+Setiap NPC punya salah satu dari 3 behavior (di-assign di array `defs` dalam `addRoomObjects()`):
+
+| Behavior | Cara Kerja |
+|----------|------------|
+| `idle-turn` | Diam di tempat, random noleh tiap 2–5 detik |
+| `wander` | Jalan random max 3 tile dari spawn, lalu balik |
+| `pace` | Bolak-balik antara `home` (A) dan `paceCol/paceRow` (B) |
+
+**Interface `NpcData`** (di CampusScene.ts):
+```typescript
+{ sprite, behavior, homeCol, homeRow, paceCol, paceRow,
+  col, row, facing, flipX, moving,
+  fromCol, fromRow, toCol, toRow, moveT,
+  frameIdx, frameTick, waitTimer }
+```
+
+**Cara tambah NPC:**
+```typescript
+// di array defs dalam addRoomObjects():
+['char_2', col, row, 'down', false, 'wander'],
+['char_3', col, row, 'right', false, 'pace', destCol, destRow],
+```
+
+**Update loop**: `updateNpcs(dt)` → `npcDecide(n)` → `npcStartMove(n, ...)` dipanggil tiap frame di `update()`. NPC speed: `NPC_SPEED = 1.5` tiles/detik.
+
+### Furniture (pixel-agents sprites, depth 7)
+Semua furniture adalah real PNG dari pixel-agents, bukan Graphics lagi.
+Lihat section **Furniture System** di atas untuk detail asset & placement.
 
 ## Cara Tambah Ruangan Baru
 
@@ -227,32 +246,36 @@ Row 1 (frames  7–13): walk north (↑) — membelakangi kamera
 Row 2 (frames 14–20): walk east  (→) — setFlipX(true) untuk west (←)
 ```
 
-## Status Saat Ini (per 2026-06-19)
+## Mobile Controls
+
+Virtual D-pad dibuat di `createDpad()` (di-call dari `create()`):
+- **D-pad** (bottom-right): 4 tombol lingkaran ↑↓←→
+- **E button** (bottom-left): interact / buka info panel
+- Multi-touch: `activePointers: 4` di `main.ts` → bisa tekan diagonal sekaligus
+- Setiap tombol set `this.dpad.left/right/up/down = true/false` on pointerdown/up/out
+- `movePlayer()` baca `this.dpad.*` sama seperti keyboard input
+
+## Status Saat Ini (per 2026-06-20)
 
 ### Sudah Berjalan
 - Map 38×32 render dengan tile pixel-agents (floor_0/3/7, wall procedural)
 - Setiap ruangan punya color tint berbeda via `setTint()`
-- Player movement tile-based collision dengan wall-sliding
-- Animasi walk 4-arah dari char_0.png
-- Info panel ruangan (tekan E, tutup ESC)
+- Player movement tile-based collision dengan wall-sliding + animasi 3-arah (flip untuk kiri)
+- Sprite char benar: frameHeight=32, tampil 32×64 (1×2 tile) — bukan balok lagi
+- Info panel ruangan (tekan E / tombol E, tutup ESC)
 - 11 ruangan terdefinisi lengkap dengan deskripsi
-- Static NPC char_1–5 tersebar di semua ruangan (2–4 per ruangan)
-- Furniture Graphics per ruangan (meja, rak, sajadah, panggung, dsb)
+- NPC char_1–5 bergerak dengan 3 behavior: idle-turn, wander, pace
+- Furniture pixel-agents PNG di semua ruangan (desk, PC, bookshelf, sofa, plant, dll)
+- Mobile D-pad (bottom-right) + E button (bottom-left) untuk HP
 - Zoom 1.0 → overview kampus terlihat baik
 
 ### Backlog
-- [x] **BUG-009: Sprite kelihatan kayak balok (FIXED)** — ternyata BUKAN clipping/occlusion.
-  Depth order (mapLayer 0 < NPC 40 < player 50) sudah benar, tile tak mungkin menutupi sprite.
-  Root cause: frame char_N 16×16 diisi penuh oleh figur (bbox ~1–14 × 2–15) + `setScale(2)`
-  → sprite jadi tepat 32×32 = 1 tile penuh, jadi tampak seperti balok (apalagi frame "south"
-  didominasi rambut). Fix: `CHAR_SCALE = 1.5` (24px) untuk player & NPC → ada margin lantai.
 - [ ] **Quest System** — NPC kasih misi, track progress
 - [ ] **Minimap** — tampilkan posisi player di corner
 - [ ] **Multiple floors/areas** — pindah antara gedung via pintu khusus
 - [ ] **Sound** — BGM + SFX langkah kaki
 - [ ] **Save/Load** — simpan posisi & progress quest
-- [ ] **Mobile controls** — virtual joystick untuk HP
-- [ ] **NPC interaksi** — tekan E di dekat NPC untuk dialog sederhana
+- [ ] **NPC dialog** — tekan E di dekat NPC untuk dialog sederhana
 
 ## Bug Log — Jangan Diulang
 
@@ -288,10 +311,12 @@ Row 2 (frames 14–20): walk east  (→) — setFlipX(true) untuk west (←)
 - **Fix**: Tambah `.setOrigin(0,0)` — lalu diganti total ke approach Layer+Image
 - **Lesson**: Jangan pakai RT besar sebagai tilemap display object
 
-### BUG-009: Sprite ngeclip ke tile grid (OPEN — di backlog)
-- **Gejala**: Player & NPC terpotong mengikuti batas tile 32×32
-- **Sudah dicoba**: depth -1 vs 50, saveTexture+Image, Layer — semua tidak fix
-- **Hipotesis**: Phaser 3.88 WebGL depth sorting quirk dengan pixelArt+roundPixels config
+### BUG-009: Sprite kelihatan kayak balok / terpotong (FIXED)
+- **Gejala**: Player & NPC terlihat sebagai blok 32×32 solid
+- **Root cause**: `frameHeight: 16` salah — spritesheet sebenarnya 7×3 rows dengan frame 16×**32**
+  (bukan 16×16). Dengan frame 16px, hanya ½ badan terlihat dan terpotong di batas frame.
+- **Fix**: `frameHeight: 32` di PreloadScene untuk char_0–5 → sprite tampil 32×64 (benar)
+- **Confirmed via**: analisis pixel numpy pada char_0.png — 3 strip of 32px each
 
 ## Dev Commands
 
