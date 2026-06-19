@@ -51,7 +51,6 @@ export class CampusScene extends Phaser.Scene {
     this.mapData = buildCampusMap();
     this.renderMap();
     this.addRoomLabels();
-    this.debugRoomCorners();
     this.createPlayer();
     this.setupAnimations();
     this.setupCamera();
@@ -66,52 +65,6 @@ export class CampusScene extends Phaser.Scene {
     this.refreshPrompt();
   }
 
-  // DEBUG: yellow markers at each room's 4 wall-boundary corners.
-  // Remove once visual/collision mismatch is confirmed fixed.
-  // Each label marks the world pixel (col*T, row*T) — the tile-grid corner.
-  private debugRoomCorners(): void {
-    // [row, col, letter] — ordered A-Z then a-r, one letter per room corner
-    const corners: [number, number, string][] = [
-      // Kelas 101
-      [1,1,'A'], [1,9,'B'], [8,1,'C'], [8,9,'D'],
-      // Kelas 102
-      [1,10,'E'], [1,18,'F'], [8,10,'G'], [8,18,'H'],
-      // Ruang Dosen
-      [1,19,'I'], [1,27,'J'], [8,19,'K'], [8,27,'L'],
-      // Lab Komputer
-      [1,28,'M'], [1,36,'N'], [8,28,'O'], [8,36,'P'],
-      // Kantin
-      [11,1,'Q'], [11,8,'R'], [21,1,'S'], [21,8,'T'],
-      // Perpustakaan
-      [11,13,'U'], [11,24,'V'], [20,13,'W'], [20,24,'X'],
-      // Tata Usaha
-      [11,29,'Y'], [11,36,'Z'], [21,29,'a'], [21,36,'b'],
-      // Musholla
-      [23,1,'c'], [23,9,'d'], [31,1,'e'], [31,9,'f'],
-      // Aula
-      [23,10,'g'], [23,18,'h'], [31,10,'i'], [31,18,'j'],
-      // UKM
-      [23,19,'k'], [23,27,'l'], [31,19,'m'], [31,27,'n'],
-      // Ruang Rapat
-      [23,28,'o'], [23,36,'p'], [31,28,'q'], [31,36,'r'],
-    ];
-
-    const g = this.add.graphics().setDepth(50);
-    for (const [row, col, label] of corners) {
-      const wx = col * T;
-      const wy = row * T;
-      g.fillStyle(0xffee00, 1);
-      g.fillRect(wx - 3, wy - 3, 6, 6);
-      this.add.text(wx + 3, wy - 9, label, {
-        fontSize: '9px',
-        color: '#ffee00',
-        fontFamily: 'monospace',
-        stroke: '#000000',
-        strokeThickness: 2,
-      }).setDepth(50);
-    }
-  }
-
   private renderMap(): void {
     const tileKey: Record<number, string> = {
       [TILE.WALL]:    'tile_wall',
@@ -122,7 +75,7 @@ export class CampusScene extends Phaser.Scene {
     };
     // drawFrame draws from top-left, unlike draw(key,x,y) which centers at (x,y).
     // Centering would shift every tile by -T/2 in both axes → 16px visual/collision mismatch.
-    const rt = this.add.renderTexture(0, 0, MAP_COLS * T, MAP_ROWS * T);
+    const rt = this.add.renderTexture(0, 0, MAP_COLS * T, MAP_ROWS * T).setOrigin(0, 0);
     for (let row = 0; row < MAP_ROWS; row++)
       for (let col = 0; col < MAP_COLS; col++)
         rt.drawFrame(tileKey[this.mapData[row][col]], undefined, col * T, row * T);

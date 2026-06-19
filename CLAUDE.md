@@ -128,10 +128,8 @@ Floor tiles yang dipakai di game ini:
 - Zoom 1.0 → overview kampus terlihat baik
 
 ### Perlu Dilakukan Sebelum Session Berikutnya
-- **HAPUS debug corner markers** dari `CampusScene.debugRoomCorners()` dan
-  panggilannya di `create()` setelah menkonfirmasi BUG-006 benar-benar fix.
-  Markers ini sementara ada untuk debug visual/collision mismatch.
-- **Verifikasi** apakah `rt.drawFrame()` fix di `renderMap()` sudah fix alignment.
+- ~~Debug corner markers sudah dihapus~~ ✓
+- ~~BUG-006 fix (`rt.drawFrame`) dikonfirmasi dan BUG-008 (RT origin) sudah fix~~ ✓
 
 ### Assets Tersedia (belum dipakai)
 - `public/assets/characters/char_1.png` … `char_5.png` — sudah didownload,
@@ -203,6 +201,16 @@ Floor tiles yang dipakai di game ini:
   effective passthrough jadi 3.36 tiles. Sangat forgiving.
 - **Lesson**: Effective passthrough = door_width_px - 2*PLAYER_R. Untuk PLAYER_R=10.24,
   butuh door minimal 3 tile (~86px) agar player bisa lewat nyaman.
+
+### BUG-008: RenderTexture origin (0.5,0.5) — map tampil offset −608px,−512px
+- **Gejala**: Map tiles hanya tampil di sudut kiri atas viewport; player muncul di area
+  gelap di luar map; debug markers bertebaran di posisi aneh
+- **Root cause**: `this.add.renderTexture(0, 0, w, h)` membuat RT dengan default origin
+  (0.5, 0.5), sehingga top-left RT jatuh di world (−w/2, −h/2) = (−608, −512), bukan (0, 0).
+  Player di-spawn di world (624, 528) — di luar range visual RT (−608..608, −512..512).
+- **Fix**: Tambah `.setOrigin(0, 0)` setelah `this.add.renderTexture(...)` di `renderMap()`
+- **Lesson**: Selalu set `.setOrigin(0, 0)` pada RenderTexture yang dipakai sebagai tilemap,
+  agar posisi world (0,0) = pojok kiri atas map sesuai ekspektasi.
 
 ### BUG-005: Player Image tidak support animasi
 - **Gejala**: Karakter statis meski pixel-agents char_0.png sudah punya walk frames
