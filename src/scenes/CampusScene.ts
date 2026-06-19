@@ -111,65 +111,139 @@ export class CampusScene extends Phaser.Scene {
   }
 
   private addRoomObjects(): void {
-    // ── Furniture (Graphics, depth 7) ─────────────────────────────────────
-    const g = this.add.graphics().setDepth(7);
+    // All furniture sprites are 16px-grid assets displayed at 2× scale.
+    // setOrigin(0,0) → top-left of sprite aligns to tile corner (col*T, row*T).
+    // Depth uses row fraction for y-sort within the furniture layer.
+    const furn = (key: string, col: number, row: number, flipX = false) =>
+      this.add.image(col * T, row * T, key)
+        .setOrigin(0, 0)
+        .setScale(2)
+        .setFlipX(flipX)
+        .setDepth(7 + row * 0.01);
 
-    const desk = (col: number, row: number, color = 0x7a5230) => {
-      g.fillStyle(color, 0.9);
-      g.fillRect(col * T + 4, row * T + 8, T - 8, T - 14);
-    };
-    const shelf = (col: number, row: number) => {
-      g.fillStyle(0x4a2e10, 0.95);
-      g.fillRect(col * T + 2, row * T + 2, T - 4, T - 4);
-    };
-    const mat = (col: number, row: number, color: number) => {
-      g.fillStyle(color, 0.75);
-      g.fillRect(col * T + 5, row * T + 5, T - 10, T - 10);
-    };
-    const tableCenter = (col: number, row: number) => {
-      g.fillStyle(0x6b3a20, 0.85);
-      g.fillRect(col * T + 3, row * T + 3, T - 6, T - 6);
-    };
+    // ── Kelas 101  (interior cols 2–8, rows 2–7) ──────────────────────────
+    furn('WHITEBOARD',         3, 1);              // hung on north wall
+    furn('DESK_FRONT',         2, 3);              // student desks row A (3W×2H each)
+    furn('DESK_FRONT',         5, 3);
+    furn('DESK_FRONT',         2, 5);              // student desks row B
+    furn('DESK_FRONT',         5, 5);
+    furn('PLANT',              8, 5);              // east-wall plant
 
-    // Classroom desks — 2 rows × 3 desks per class
-    const classDeskRows = (bc: number) => {
-      [3, 5].forEach(r => [0, 2, 4].forEach(dc => desk(bc + dc, r)));
-    };
-    classDeskRows(2);   // Kelas 101
-    classDeskRows(11);  // Kelas 102
-    classDeskRows(20);  // Ruang Dosen
-    classDeskRows(29);  // Lab Komputer
+    // ── Kelas 102  (interior cols 11–17, rows 2–7) ────────────────────────
+    furn('WHITEBOARD',        12, 1);
+    furn('DESK_FRONT',        11, 3);
+    furn('DESK_FRONT',        14, 3);
+    furn('DESK_FRONT',        11, 5);
+    furn('DESK_FRONT',        14, 5);
+    furn('CACTUS',            17, 5);
 
-    // Library — bookshelves on north & south interior walls
-    for (let c = 14; c <= 23; c += 2) { shelf(c, 12); shelf(c, 19); }
-    // Library — reading tables in center
-    [17, 19].forEach(c => [14, 16].forEach(r => tableCenter(c, r)));
+    // ── Ruang Dosen  (interior cols 20–26, rows 2–7) ──────────────────────
+    furn('WHITEBOARD',        20, 1);
+    furn('DESK_FRONT',        20, 2);              // faculty desk A
+    furn('PC_FRONT_ON_1',     20, 2);              // PC on desk (same origin, renders above via depth)
+    furn('DESK_FRONT',        23, 2);              // faculty desk B
+    furn('PC_FRONT_ON_1',     23, 2);
+    furn('DESK_FRONT',        20, 5);              // faculty desk C
+    furn('PC_FRONT_ON_1',     20, 5);
+    furn('DESK_FRONT',        23, 5);              // faculty desk D
+    furn('PC_FRONT_ON_1',     23, 5);
+    furn('CUSHIONED_CHAIR_FRONT', 21, 4);          // visitor chairs
+    furn('CUSHIONED_CHAIR_FRONT', 24, 4);
+    furn('PLANT',             26, 2);
 
-    // Kantin — food counter + 4 tables
-    g.fillStyle(0x8b5c30, 0.85);
-    g.fillRect(2 * T + 2, 12 * T + 2, T * 2 - 4, T - 8); // counter
-    [[4,15],[4,18],[7,15],[7,18]].forEach(([c,r]) => tableCenter(c, r));
+    // ── Lab Komputer  (interior cols 29–35, rows 2–7) ─────────────────────
+    furn('WHITEBOARD',        29, 1);
+    for (let c = 29; c <= 34; c++) furn('PC_FRONT_ON_1', c, 2); // 6 PCs top row
+    for (let c = 29; c <= 34; c++) furn('PC_FRONT_ON_1', c, 5); // 6 PCs bottom row
+    furn('BIN',               35, 7);
 
-    // Tata Usaha — reception desk
-    g.fillStyle(0x5a3a20, 0.9);
-    g.fillRect(30 * T + 2, 13 * T + 2, T * 3 - 4, T - 8);
+    // ── Kantin  (interior cols 2–7, rows 12–20) ───────────────────────────
+    furn('DESK_FRONT',         2, 12);             // food counter
+    furn('COFFEE',             2, 13);             // coffee machine beside counter
+    furn('LARGE_PLANT',        6, 12);             // corner plant (2W×3H)
+    furn('COFFEE_TABLE',       2, 15);             // dining table A (2W×2H)
+    furn('CUSHIONED_CHAIR_FRONT', 2, 17);
+    furn('CUSHIONED_CHAIR_FRONT', 3, 17);
+    furn('COFFEE_TABLE',       5, 15);             // dining table B
+    furn('CUSHIONED_CHAIR_FRONT', 5, 17);
+    furn('CUSHIONED_CHAIR_FRONT', 6, 17);
+    furn('COFFEE_TABLE',       2, 18);             // dining table C
+    furn('CUSHIONED_CHAIR_FRONT', 2, 20);
+    furn('CUSHIONED_CHAIR_FRONT', 3, 20);
+    furn('COFFEE_TABLE',       5, 18);             // dining table D
+    furn('CUSHIONED_CHAIR_FRONT', 5, 20);
+    furn('CUSHIONED_CHAIR_FRONT', 6, 20);
+    furn('BIN',                7, 20);
 
-    // Musholla — prayer mats (4 rows)
-    [25, 26, 27, 28].forEach(r =>
-      [2, 4, 6, 8].forEach(c => mat(c, r, 0x2a6e3a))
-    );
+    // ── Perpustakaan  (interior cols 14–23, rows 12–19) ───────────────────
+    // Bookshelves along north interior wall (each 2W×2H)
+    for (let c = 14; c <= 22; c += 2) furn('DOUBLE_BOOKSHELF', c, 12);
+    // Bookshelves along south interior wall
+    for (let c = 14; c <= 22; c += 2) furn('DOUBLE_BOOKSHELF', c, 18);
+    // Reading tables + chairs in centre
+    furn('SMALL_TABLE_FRONT',  15, 14);            // table A (2W×2H)
+    furn('CUSHIONED_CHAIR_BACK',  15, 14);         // chair behind table A
+    furn('CUSHIONED_CHAIR_FRONT', 15, 16);         // chair in front
+    furn('CUSHIONED_CHAIR_FRONT', 16, 16);
+    furn('SMALL_TABLE_FRONT',  19, 14);            // table B
+    furn('CUSHIONED_CHAIR_BACK',  19, 14);
+    furn('CUSHIONED_CHAIR_FRONT', 19, 16);
+    furn('CUSHIONED_CHAIR_FRONT', 20, 16);
+    furn('PC_FRONT_ON_1',      22, 14);            // library PC terminal
+    furn('HANGING_PLANT',      23, 12);
 
-    // Aula — stage podium at north wall
-    g.fillStyle(0x3a2a10, 0.9);
-    g.fillRect(12 * T + 4, 24 * T + 4, T * 5 - 8, T - 8);
+    // ── Tata Usaha  (interior cols 30–35, rows 12–20) ─────────────────────
+    furn('DESK_FRONT',         30, 12);            // reception desk (3W×2H)
+    furn('PC_FRONT_ON_1',      30, 12);            // PC at reception
+    furn('CUSHIONED_CHAIR_FRONT', 31, 14);         // visitor chair
+    furn('BOOKSHELF',          33, 12);            // filing shelves (2W×1H each)
+    furn('BOOKSHELF',          33, 13);
+    furn('BOOKSHELF',          33, 15);
+    furn('BOOKSHELF',          33, 17);
+    furn('DESK_FRONT',         30, 16);            // second staff desk
+    furn('PC_FRONT_ON_1',      30, 16);
+    furn('CLOCK',              35, 12);
+    furn('PLANT',              35, 19);
+    furn('BIN',                34, 20);
 
-    // Ruang Rapat — conference table (2×3 cluster)
-    [30,31,32].forEach(c => [26,27].forEach(r => tableCenter(c, r)));
+    // ── Musholla  (interior cols 2–8, rows 24–30) ─────────────────────────
+    furn('SMALL_PAINTING',     2, 24);             // qibla marker on north wall
+    for (let r = 25; r <= 29; r += 2)             // prayer mat rows
+      for (let c = 2; c <= 7; c += 2)
+        furn('CUSHIONED_BENCH', c, r);
+    furn('HANGING_PLANT',      8, 24);
 
-    // UKM — sofas/low tables
-    [[20,26],[20,28],[24,26],[24,28]].forEach(([c,r]) => mat(c, r, 0x336699));
+    // ── Aula  (interior cols 11–17, rows 24–30) ───────────────────────────
+    furn('DESK_FRONT',         12, 24);            // stage/podium
+    furn('LARGE_PAINTING',     15, 24);            // backdrop art (2W×2H)
+    furn('PLANT',              11, 24);
+    furn('PLANT',              17, 24);
+    for (let c = 11; c <= 17; c++) furn('WOODEN_BENCH', c, 27); // bench row A
+    for (let c = 11; c <= 17; c++) furn('WOODEN_BENCH', c, 29); // bench row B
 
-    // ── Static NPC characters (depth 40) ─────────────────────────────────
+    // ── UKM Center  (interior cols 20–26, rows 24–30) ─────────────────────
+    furn('LARGE_PLANT',        25, 24);
+    furn('SOFA_BACK',          20, 25);            // sofa group (2W×1H each)
+    furn('SOFA_BACK',          22, 25);
+    furn('COFFEE_TABLE',       21, 26);            // coffee table (2W×2H)
+    furn('SOFA_FRONT',         20, 28);
+    furn('SOFA_FRONT',         22, 28);
+    furn('SMALL_PAINTING_2',   24, 25);
+    furn('PLANT_2',            20, 24);
+    furn('BIN',                26, 30);
+
+    // ── Ruang Rapat  (interior cols 29–35, rows 24–30) ────────────────────
+    furn('WHITEBOARD',         30, 23);            // on north wall
+    furn('DESK_FRONT',         29, 25);            // conference table left (3W×2H)
+    furn('DESK_FRONT',         32, 25);            // conference table right
+    for (let c = 29; c <= 34; c++)                 // chairs south side
+      furn('CUSHIONED_CHAIR_FRONT', c, 27);
+    for (let c = 29; c <= 34; c++)                 // chairs north side
+      furn('CUSHIONED_CHAIR_BACK', c, 24);
+    furn('CLOCK',              35, 24);
+    furn('PLANT',              35, 29);
+
+    // ── Static NPC characters (depth 40) ──────────────────────────────────
     // frame 0=south, 7=north, 14=east, 14+flipX=west
     const npcs: [string, number, number, number, boolean?][] = [
       // Kelas 101
@@ -177,24 +251,23 @@ export class CampusScene extends Phaser.Scene {
       // Kelas 102
       ['char_3', 12,  4,  0], ['char_1', 17,  6,  0],
       // Ruang Dosen
-      ['char_4', 21,  4,  7], ['char_5', 25,  6,  0],
+      ['char_4', 22,  4,  7], ['char_5', 25,  6,  0],
       // Lab Komputer
-      ['char_2', 30,  3, 14], ['char_3', 34,  5, 14],
+      ['char_2', 31,  4, 14], ['char_3', 34,  6, 14],
       // Kantin
-      ['char_5',  3, 16, 14], ['char_1',  6, 15,  0], ['char_2',  6, 18,  0],
+      ['char_5',  3, 14, 14], ['char_1',  5, 16,  0], ['char_2',  6, 19,  0],
       // Tata Usaha
-      ['char_4', 34, 14, 14, true], ['char_2', 31, 18, 14, true],
+      ['char_4', 34, 14, 14, true], ['char_2', 33, 18, 14, true],
       // Library
-      ['char_3', 15, 13,  0], ['char_5', 19, 17,  7], ['char_1', 22, 15, 14, true],
+      ['char_3', 15, 13,  0], ['char_5', 21, 17,  7], ['char_1', 17, 16, 14, true],
       // Musholla
-      ['char_2',  5, 28,  7], ['char_4',  6, 29,  7], ['char_3',  3, 26,  7],
+      ['char_2',  3, 28,  7], ['char_4',  5, 29,  7], ['char_3',  7, 26,  7],
       // Aula
-      ['char_5', 14, 25,  0], ['char_3', 12, 28,  7], ['char_1', 16, 28,  7],
-      ['char_4', 11, 26, 14],
+      ['char_5', 13, 26,  0], ['char_3', 15, 28,  7], ['char_4', 11, 26, 14],
       // UKM
-      ['char_4', 21, 26, 14], ['char_2', 25, 28, 14, true], ['char_5', 23, 25,  0],
+      ['char_4', 21, 27, 14], ['char_2', 24, 29, 14, true], ['char_5', 23, 24,  0],
       // Ruang Rapat
-      ['char_5', 30, 25,  0], ['char_1', 33, 28,  7], ['char_3', 29, 27, 14],
+      ['char_5', 31, 24,  7], ['char_1', 34, 29,  7], ['char_3', 29, 28, 14],
     ];
 
     for (const [key, col, row, frame, flipX] of npcs) {
@@ -202,7 +275,7 @@ export class CampusScene extends Phaser.Scene {
       this.add.sprite(col * T + T / 2, row * T + T / 2, key, frame)
         .setScale(CHAR_SCALE)
         .setFlipX(flipX ?? false)
-        .setDepth(40);
+        .setDepth(40 + row * 0.01);
     }
   }
 

@@ -110,6 +110,70 @@ koridor akses pintu top-room atau bottom-room.
 - Koridor south (row 22) harus bebas di seluruh lebar
 - Library doors: **4-tile wide** (cols 17–20) — effective passthrough 3.36 tiles
 
+## Furniture System
+
+### Asset Source
+Semua furniture dari pixel-agents, sudah dicopy ke `public/assets/furniture/`.
+Tiap item adalah PNG terpisah per orientasi (FRONT/BACK/SIDE).
+
+### Cara Tambah Furniture
+
+1. **Load di `PreloadScene.preload()`** (sudah ada semua — cek dulu sebelum tambah):
+   ```typescript
+   fi('KEY_NAME', 'FOLDER/FILE.png');
+   ```
+
+2. **Place di `CampusScene.addRoomObjects()`** via helper `furn()`:
+   ```typescript
+   furn('KEY_NAME', col, row);          // normal
+   furn('KEY_NAME', col, row, true);    // flipX untuk arah berlawanan
+   ```
+   - Origin `(0,0)` → koordinat = sudut kiri-atas sprite
+   - Scale `2×` → 1 pixel-agents unit (16px) = 1 game tile (32px)
+   - Depth `7 + row*0.01` (di bawah NPC depth 40)
+
+### Available Assets & Ukuran (pada scale 2×)
+
+| Key | File | Ukuran di game (tile W×H) |
+|-----|------|---------------------------|
+| `DESK_FRONT` | DESK/DESK_FRONT.png | 3×2 |
+| `DESK_SIDE` | DESK/DESK_SIDE.png | 1×4 |
+| `SMALL_TABLE_FRONT` | SMALL_TABLE/SMALL_TABLE_FRONT.png | 2×2 |
+| `SMALL_TABLE_SIDE` | SMALL_TABLE/SMALL_TABLE_SIDE.png | 1×3 |
+| `COFFEE_TABLE` | COFFEE_TABLE/COFFEE_TABLE.png | 2×2 |
+| `BOOKSHELF` | BOOKSHELF/BOOKSHELF.png | 2×1 |
+| `DOUBLE_BOOKSHELF` | DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png | 2×2 |
+| `WHITEBOARD` | WHITEBOARD/WHITEBOARD.png | 2×2 |
+| `WOODEN_CHAIR_FRONT/BACK/SIDE` | WOODEN_CHAIR/... | 1×2 |
+| `CUSHIONED_CHAIR_FRONT/BACK/SIDE` | CUSHIONED_CHAIR/... | 1×1 |
+| `CUSHIONED_BENCH` | CUSHIONED_BENCH/... | 1×1 |
+| `WOODEN_BENCH` | WOODEN_BENCH/... | 1×1 |
+| `SOFA_FRONT/BACK` | SOFA/... | 2×1 |
+| `SOFA_SIDE` | SOFA/SOFA_SIDE.png | 1×2 |
+| `PC_FRONT_ON_1/OFF` | PC/... | 1×2 |
+| `PC_BACK/SIDE` | PC/... | 1×2 |
+| `PLANT` / `PLANT_2` | PLANT/... | 1×2 |
+| `LARGE_PLANT` | LARGE_PLANT/... | 2×3 |
+| `HANGING_PLANT` | HANGING_PLANT/... | 1×2 |
+| `CACTUS` | CACTUS/... | 1×2 |
+| `POT` | POT/POT.png | 1×1 |
+| `BIN` | BIN/BIN.png | 1×1 |
+| `CLOCK` | CLOCK/CLOCK.png | 1×2 |
+| `COFFEE` | COFFEE/COFFEE.png | 1×1 |
+| `SMALL_PAINTING` / `SMALL_PAINTING_2` | ... | 1×2 |
+| `LARGE_PAINTING` | LARGE_PAINTING/... | 2×2 |
+
+### Konvensi Orientasi
+- `FRONT` → menghadap kamera (selatan), taruh di sisi selatan ruangan
+- `BACK` → membelakangi kamera (utara), taruh di sisi utara ruangan  
+- `SIDE` → samping; gunakan `flipX=true` untuk arah berlawanan
+- PC: gunakan `PC_FRONT_ON_1` untuk PC menyala, `PC_FRONT_OFF` untuk mati
+
+### Tips Placement
+- Wall-mounted items (WHITEBOARD, CLOCK, BOOKSHELF, PAINTING): taruh di `row` dinding (misal row 1 untuk north wall)
+- Items di atas desk (PC): taruh di koordinat sama dengan desk, depth otomatis overlap dengan benar
+- Jangan taruh furniture di tile WALL atau koridor — cuma tile ROOM/LIBRARY/FLOOR
+
 ## NPC & Furniture
 
 ### Static NPCs (`char_1`–`char_5`)
