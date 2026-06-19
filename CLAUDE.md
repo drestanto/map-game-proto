@@ -178,10 +178,11 @@ Row 3 (frames 21–27): walk north (↑)
 - Zoom 1.0 → overview kampus terlihat baik
 
 ### Backlog
-- [ ] **BUG-009: Sprite ngeclip ke tile grid** — player & NPC sprite terpotong mengikuti
-  batas tile 32×32. Sudah dicoba: depth sort (depth -1 vs 50), individual Images, Layer —
-  semua belum fix. Root cause belum teridentifikasi. Kemungkinan Phaser 3.88 WebGL quirk
-  atau issue dengan `pixelArt: true` + `roundPixels: true`.
+- [x] **BUG-009: Sprite kelihatan kayak balok (FIXED)** — ternyata BUKAN clipping/occlusion.
+  Depth order (mapLayer 0 < NPC 40 < player 50) sudah benar, tile tak mungkin menutupi sprite.
+  Root cause: frame char_N 16×16 diisi penuh oleh figur (bbox ~1–14 × 2–15) + `setScale(2)`
+  → sprite jadi tepat 32×32 = 1 tile penuh, jadi tampak seperti balok (apalagi frame "south"
+  didominasi rambut). Fix: `CHAR_SCALE = 1.5` (24px) untuk player & NPC → ada margin lantai.
 - [ ] **Quest System** — NPC kasih misi, track progress
 - [ ] **Minimap** — tampilkan posisi player di corner
 - [ ] **Multiple floors/areas** — pindah antara gedung via pintu khusus

@@ -13,6 +13,10 @@ const T = TILE_SIZE;
 const PLAYER_SPEED = 150;      // px/s
 const PLAYER_R     = T * 0.32; // collision radius
 const INTERACT_R   = T * 2.2;  // "Press E" detection radius
+// char_N frames are 16×16 and the figure fills the whole frame. Scaling 2× makes
+// the sprite exactly 32×32 = one full tile → reads as a solid block. Use 1.5×
+// (24px) so there's floor margin around the character and it looks like a figure.
+const CHAR_SCALE   = 1.5;
 
 // char_0.png row layout: 7 frames per row × 6 rows = 42 frames
 // Row 0 (0–6)  : walk south, Row 1 (7–13) : walk west
@@ -196,7 +200,7 @@ export class CampusScene extends Phaser.Scene {
     for (const [key, col, row, frame] of npcs) {
       if (!this.textures.exists(key)) continue;
       this.add.sprite(col * T + T / 2, row * T + T / 2, key, frame)
-        .setScale(2)
+        .setScale(CHAR_SCALE)
         .setDepth(40);
     }
   }
@@ -226,7 +230,7 @@ export class CampusScene extends Phaser.Scene {
     this.player = this.add
       .sprite(col * T + T / 2, row * T + T / 2, hasChar ? 'char' : 'player_fallback')
       .setDepth(50);
-    if (hasChar) this.player.setScale(2);
+    if (hasChar) this.player.setScale(CHAR_SCALE);
   }
 
   private setupAnimations(): void {
