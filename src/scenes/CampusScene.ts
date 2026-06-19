@@ -52,6 +52,7 @@ export class CampusScene extends Phaser.Scene {
   private mapData!: number[][];
   private player!: Phaser.GameObjects.Sprite;
   private npcList: NpcData[] = [];
+  private dpad = { left: false, right: false, up: false, down: false };
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: {
@@ -82,6 +83,7 @@ export class CampusScene extends Phaser.Scene {
     this.setupCamera();
     this.setupInput();
     this.createUI();
+    this.createDpad();
   }
 
   update(_time: number, delta: number): void {
@@ -398,10 +400,10 @@ export class CampusScene extends Phaser.Scene {
 
   // ── Movement: separate X/Y checks → smooth wall-sliding ──────────────────
   private movePlayer(dt: number): void {
-    const goLeft  = this.cursors.left.isDown  || this.wasd.left.isDown;
-    const goRight = this.cursors.right.isDown || this.wasd.right.isDown;
-    const goUp    = this.cursors.up.isDown    || this.wasd.up.isDown;
-    const goDown  = this.cursors.down.isDown  || this.wasd.down.isDown;
+    const goLeft  = this.cursors.left.isDown  || this.wasd.left.isDown  || this.dpad.left;
+    const goRight = this.cursors.right.isDown || this.wasd.right.isDown || this.dpad.right;
+    const goUp    = this.cursors.up.isDown    || this.wasd.up.isDown    || this.dpad.up;
+    const goDown  = this.cursors.down.isDown  || this.wasd.down.isDown  || this.dpad.down;
 
     const hasChar = this.textures.exists('char');
 
@@ -542,6 +544,67 @@ export class CampusScene extends Phaser.Scene {
   private closePanel(): void {
     this.infoPanel.setVisible(false);
     this.panelOpen = false;
+  }
+
+  // ── Virtual D-pad (mobile) ────────────────────────────────────────────────
+
+  private createDpad(): void {
+    const { width, height } = this.scale;
+    const R   = 36;   // button radius
+    const GAP = 6;    // gap between buttons
+    const S   = R * 2 + GAP; // step between button centres
+    // centre of the cross: bottom-right corner
+    const cx  = width  - S - R - 16;
+    const cy  = height - S - R - 16;
+
+    // Interact button (E) — top-left of screen, mobile-friendly
+    const eX  = R + 16;
+    const eY  = height - R - 16;
+
+    const btnAlpha    = 0.55;
+    const btnColor    = 0x222244;
+    const arrowColor  = 0xffffff;
+
+    const makeBtn = (
+      bx: number, by: number,
+      arrow: string,
+      onDown: () => void,
+      onUp: () => void,
+    ) => {
+      const g = this.add.graphics().setScrollFactor(0).setDepth(150).setInteractive(
+        new Phaser.Geom.Circle(bx, by, R), Phaser.Geom.Circle.Contains,
+      );
+
+      const draw = (pressed: boolean) => {
+        g.clear();
+        g.fillStyle(btnColor, pressed ? 0.85 : btnAlpha);
+        g.fillCircle(bx, by, R);
+        g.lineStyle(2, 0x6666aa, 0.7);
+        g.strokeCircle(bx, by, R);
+        // text labels are added separately as Text objects below
+      };
+
+      draw(false);
+
+      // text label centred on button
+      this.add.text(bx, by, arrow, {
+        fontSize: '20px', color: '#ffffff',
+        fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(151);
+
+      g.on('pointerdown', () => { draw(true);  onDown(); });
+      g.on('pointerup',   () => { draw(false); onUp();   });
+      g.on('pointerout',  () => { draw(false); onUp();   });
+    };
+
+    // D-pad arrows
+    makeBtn(cx,     cy - S, '↑', () => this.dpad.up    = true, () => this.dpad.up    = false);
+    makeBtn(cx,     cy + S, '↓', () => this.dpad.down  = true, () => this.dpad.down  = false);
+    makeBtn(cx - S, cy,     '←', () => this.dpad.left  = true, () => this.dpad.left  = false);
+    makeBtn(cx + S, cy,     '→', () => this.dpad.right = true, () => this.dpad.right = false);
+
+    // Interact button
+    makeBtn(eX, eY, 'E', () => this.handleE(), () => {});
   }
 
   // ── NPC AI ────────────────────────────────────────────────────────────────
