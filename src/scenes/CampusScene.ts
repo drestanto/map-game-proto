@@ -73,12 +73,36 @@ export class CampusScene extends Phaser.Scene {
       [TILE.LIBRARY]: 'tile_library',
       [TILE.DOOR]:    'tile_door',
     };
-    // drawFrame draws from top-left, unlike draw(key,x,y) which centers at (x,y).
-    // Centering would shift every tile by -T/2 in both axes → 16px visual/collision mismatch.
-    const rt = this.add.renderTexture(0, 0, MAP_COLS * T, MAP_ROWS * T).setOrigin(0, 0);
-    for (let row = 0; row < MAP_ROWS; row++)
-      for (let col = 0; col < MAP_COLS; col++)
-        rt.drawFrame(tileKey[this.mapData[row][col]], undefined, col * T, row * T);
+    // [r1,c1,r2,c2, tint] — interior tile bounds per room
+    const ROOM_TINTS: [number,number,number,number,number][] = [
+      [1,  1,  8,  9,  0xe0f0ff], // Kelas 101     — sky blue
+      [1,  10, 8,  18, 0xe8ffe0], // Kelas 102     — mint green
+      [1,  19, 8,  27, 0xfff0e0], // Ruang Dosen   — warm amber
+      [1,  28, 8,  36, 0xf0e0ff], // Lab Komputer  — soft purple
+      [11, 1,  21, 8,  0xffe8d8], // Kantin        — warm peach
+      [11, 29, 21, 36, 0xe0f4ff], // Tata Usaha    — cool blue
+      [23, 1,  31, 9,  0xffe0e0], // Musholla      — rose
+      [23, 10, 31, 18, 0xfffff0], // Aula          — ivory
+      [23, 19, 31, 27, 0xe0ffe0], // UKM Center    — sage green
+      [23, 28, 31, 36, 0xffe0f8], // Ruang Rapat   — orchid
+    ];
+
+    const mapLayer = this.add.layer();
+    for (let row = 0; row < MAP_ROWS; row++) {
+      for (let col = 0; col < MAP_COLS; col++) {
+        const tileType = this.mapData[row][col];
+        const img = this.add.image(col * T + T / 2, row * T + T / 2, tileKey[tileType]);
+
+        if (tileType === TILE.LIBRARY) {
+          img.setTint(0xe0e0f8); // periwinkle — beda dari semua room
+        } else if (tileType === TILE.ROOM) {
+          for (const [r1, c1, r2, c2, tint] of ROOM_TINTS)
+            if (row >= r1 && row <= r2 && col >= c1 && col <= c2) { img.setTint(tint); break; }
+        }
+
+        mapLayer.add(img);
+      }
+    }
   }
 
   private addRoomLabels(): void {
@@ -105,7 +129,7 @@ export class CampusScene extends Phaser.Scene {
     const hasChar = this.textures.exists('char');
     this.player = this.add
       .sprite(col * T + T / 2, row * T + T / 2, hasChar ? 'char' : 'player_fallback')
-      .setDepth(10);
+      .setDepth(50);
     if (hasChar) this.player.setScale(2);
   }
 
