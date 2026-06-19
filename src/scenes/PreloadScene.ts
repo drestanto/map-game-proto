@@ -19,15 +19,17 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // char_0.png: 112×96 → 7 cols × 6 rows of 16×16 frames
-    // Row 0 = walk-down, row 1 = walk-left, row 2 = walk-right, row 3 = walk-up
+    // char_0.png: 112×96 → 7 cols × 3 rows of 16×32 frames (96/32=3 rows)
+    // Row 0 (frames  0– 6): walk south (facing camera)
+    // Row 1 (frames  7–13): walk north (backs to camera)
+    // Row 2 (frames 14–20): walk east — mirror with setFlipX(true) for west
     this.load.spritesheet('char', 'assets/characters/char_0.png', {
-      frameWidth: 16, frameHeight: 16,
+      frameWidth: 16, frameHeight: 32,
     });
     // char_1–5: same layout, used as static NPCs in rooms
     for (let i = 1; i <= 5; i++)
       this.load.spritesheet(`char_${i}`, `assets/characters/char_${i}.png`, {
-        frameWidth: 16, frameHeight: 16,
+        frameWidth: 16, frameHeight: 32,
       });
 
     // Pixel-agents floor tiles (16×16 each, tiled 2×2 to fill 32×32)

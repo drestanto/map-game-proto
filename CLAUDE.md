@@ -154,14 +154,13 @@ Download: `curl -sf -o "path/file.png" "https://raw.githubusercontent.com/pixel-
 ### Character Sprites
 - `char_0.png` — player utama (animated, 4 arah)
 - `char_1.png`–`char_5.png` — NPC statis di dalam ruangan
-- Semua: 112×96 px → 7 kolom × 6 baris, frame 16×16, scale 2× → 32×32
+- Semua: 112×96 px → 7 kolom × 3 baris, frame 16×32, scale 2× → 32×64
 
-Frame layout (asumsi — sesuaikan jika animasi terlihat salah):
+Frame layout (dikonfirmasi via analisis pixel):
 ```
-Row 0 (frames  0– 6): walk south (↓)
-Row 1 (frames  7–13): walk west  (←)
-Row 2 (frames 14–20): walk east  (→)
-Row 3 (frames 21–27): walk north (↑)
+Row 0 (frames  0– 6): walk south (↓) — menghadap kamera
+Row 1 (frames  7–13): walk north (↑) — membelakangi kamera
+Row 2 (frames 14–20): walk east  (→) — setFlipX(true) untuk west (←)
 ```
 
 ## Status Saat Ini (per 2026-06-19)

@@ -16,16 +16,16 @@ const INTERACT_R   = T * 2.2;  // "Press E" detection radius
 // char_N frames are 16×16 and the figure fills the whole frame. Scaling 2× makes
 // the sprite exactly 32×32 = one full tile → reads as a solid block. Use 1.5×
 // (24px) so there's floor margin around the character and it looks like a figure.
-const CHAR_SCALE   = 1.5;
+const CHAR_SCALE   = 2;
 
-// char_0.png row layout: 7 frames per row × 6 rows = 42 frames
-// Row 0 (0–6)  : walk south, Row 1 (7–13) : walk west
-// Row 2 (14–20): walk east,  Row 3 (21–27): walk north
+// char_0.png: 7 frames × 3 rows of 16×32 = 21 frames total
+// Row 0 (0–6)  : walk south (facing camera)
+// Row 1 (7–13) : walk north (backs to camera)
+// Row 2 (14–20): walk east — mirror with setFlipX(true) for west
 const ANIM_FRAMES = {
   'walk-down':  { start:  0, end:  6 },
-  'walk-left':  { start:  7, end: 13 },
+  'walk-up':    { start:  7, end: 13 },
   'walk-right': { start: 14, end: 20 },
-  'walk-up':    { start: 21, end: 27 },
 } as const;
 
 export class CampusScene extends Phaser.Scene {
@@ -170,37 +170,38 @@ export class CampusScene extends Phaser.Scene {
     [[20,26],[20,28],[24,26],[24,28]].forEach(([c,r]) => mat(c, r, 0x336699));
 
     // ── Static NPC characters (depth 40) ─────────────────────────────────
-    // frame 0=south, 7=west, 14=east, 21=north
-    const npcs: [string, number, number, number][] = [
+    // frame 0=south, 7=north, 14=east, 14+flipX=west
+    const npcs: [string, number, number, number, boolean?][] = [
       // Kelas 101
       ['char_1',  3,  4,  0], ['char_2',  7,  6,  0],
       // Kelas 102
       ['char_3', 12,  4,  0], ['char_1', 17,  6,  0],
       // Ruang Dosen
-      ['char_4', 22,  3, 21], ['char_5', 25,  6,  0],
+      ['char_4', 21,  4,  7], ['char_5', 25,  6,  0],
       // Lab Komputer
       ['char_2', 30,  3, 14], ['char_3', 34,  5, 14],
       // Kantin
-      ['char_5',  3, 16, 14], ['char_1',  6, 15,  0], ['char_2',  7, 18,  0],
+      ['char_5',  3, 16, 14], ['char_1',  6, 15,  0], ['char_2',  6, 18,  0],
       // Tata Usaha
-      ['char_4', 34, 14,  7], ['char_2', 31, 18,  7],
+      ['char_4', 34, 14, 14, true], ['char_2', 31, 18, 14, true],
       // Library
-      ['char_3', 15, 13,  0], ['char_5', 19, 17, 21], ['char_1', 22, 15,  7],
+      ['char_3', 15, 13,  0], ['char_5', 19, 17,  7], ['char_1', 22, 15, 14, true],
       // Musholla
-      ['char_2',  4, 28, 21], ['char_4',  6, 29, 21], ['char_3',  3, 26, 21],
+      ['char_2',  5, 28,  7], ['char_4',  6, 29,  7], ['char_3',  3, 26,  7],
       // Aula
-      ['char_5', 14, 25,  0], ['char_3', 12, 28, 21], ['char_1', 16, 28, 21],
+      ['char_5', 14, 25,  0], ['char_3', 12, 28,  7], ['char_1', 16, 28,  7],
       ['char_4', 11, 26, 14],
       // UKM
-      ['char_4', 21, 26, 14], ['char_2', 25, 28,  7], ['char_5', 23, 25,  0],
+      ['char_4', 21, 26, 14], ['char_2', 25, 28, 14, true], ['char_5', 23, 25,  0],
       // Ruang Rapat
-      ['char_5', 30, 25,  0], ['char_1', 33, 28, 21], ['char_3', 29, 27, 14],
+      ['char_5', 30, 25,  0], ['char_1', 33, 28,  7], ['char_3', 29, 27, 14],
     ];
 
-    for (const [key, col, row, frame] of npcs) {
+    for (const [key, col, row, frame, flipX] of npcs) {
       if (!this.textures.exists(key)) continue;
       this.add.sprite(col * T + T / 2, row * T + T / 2, key, frame)
         .setScale(CHAR_SCALE)
+        .setFlipX(flipX ?? false)
         .setDepth(40);
     }
   }
@@ -225,7 +226,7 @@ export class CampusScene extends Phaser.Scene {
   private createPlayer(): void {
     // Spawn inside the library center — gives the best overview of the campus
     // and allows free north/south movement through the library doors.
-    const col = 19, row = 16;
+    const col = 19, row = 15;
     const hasChar = this.textures.exists('char');
     this.player = this.add
       .sprite(col * T + T / 2, row * T + T / 2, hasChar ? 'char' : 'player_fallback')
@@ -285,12 +286,21 @@ export class CampusScene extends Phaser.Scene {
       return;
     }
 
-    // Play directional walk animation
+    // Play directional walk animation (walk-left mirrors walk-right via flipX)
     if (hasChar) {
-      if      (dx < 0) this.player.play('walk-left',  true);
-      else if (dx > 0) this.player.play('walk-right', true);
-      else if (dy < 0) this.player.play('walk-up',    true);
-      else              this.player.play('walk-down',  true);
+      if (dx < 0) {
+        this.player.play('walk-right', true);
+        this.player.setFlipX(true);
+      } else if (dx > 0) {
+        this.player.play('walk-right', true);
+        this.player.setFlipX(false);
+      } else if (dy < 0) {
+        this.player.play('walk-up', true);
+        this.player.setFlipX(false);
+      } else {
+        this.player.play('walk-down', true);
+        this.player.setFlipX(false);
+      }
     }
 
     const len = Math.sqrt(dx * dx + dy * dy);
