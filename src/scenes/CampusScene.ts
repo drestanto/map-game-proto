@@ -17,6 +17,8 @@ const INTERACT_R   = T * 2.2;  // "Press E" detection radius
 // the sprite exactly 32×32 = one full tile → reads as a solid block. Use 1.5×
 // (24px) so there's floor margin around the character and it looks like a figure.
 const CHAR_SCALE   = 2;
+const NPC_SPEED    = 1.5;   // tiles per second when moving
+const NPC_WALK_FPS = 8;     // walk animation frames per second
 
 // char_0.png: 7 frames × 3 rows of 16×32 = 21 frames total
 // Row 0 (0–6)  : walk south (facing camera)
@@ -28,9 +30,28 @@ const ANIM_FRAMES = {
   'walk-right': { start: 14, end: 20 },
 } as const;
 
+type NpcBehavior = 'idle-turn' | 'wander' | 'pace';
+type Facing = 'down' | 'up' | 'right';
+
+interface NpcData {
+  sprite: Phaser.GameObjects.Sprite;
+  behavior: NpcBehavior;
+  homeCol: number; homeRow: number;       // spawn / pace-point-A
+  paceCol: number; paceRow: number;       // pace-point-B (same as home for non-pace)
+  col: number; row: number;               // current tile (integer when idle)
+  facing: Facing; flipX: boolean;
+  moving: boolean;
+  fromCol: number; fromRow: number;
+  toCol:   number; toRow:   number;
+  moveT: number;                          // 0→1 lerp progress
+  frameIdx: number; frameTick: number;    // walk animation
+  waitTimer: number;                      // seconds until next decision
+}
+
 export class CampusScene extends Phaser.Scene {
   private mapData!: number[][];
   private player!: Phaser.GameObjects.Sprite;
+  private npcList: NpcData[] = [];
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: {
@@ -64,8 +85,10 @@ export class CampusScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    const dt = delta / 1000;
+    this.updateNpcs(dt);
     if (this.panelOpen) return;
-    this.movePlayer(delta / 1000);
+    this.movePlayer(dt);
     this.checkNearby();
     this.refreshPrompt();
   }
@@ -243,39 +266,70 @@ export class CampusScene extends Phaser.Scene {
     furn('CLOCK',              35, 24);
     furn('PLANT',              35, 29);
 
-    // ── Static NPC characters (depth 40) ──────────────────────────────────
-    // frame 0=south, 7=north, 14=east, 14+flipX=west
-    const npcs: [string, number, number, number, boolean?][] = [
+    // ── NPC characters (depth 40+) — animated via updateNpcs() ───────────
+    // [key, col, row, facing, flipX, behavior, paceDestCol, paceDestRow]
+    type NpcDef = [string, number, number, Facing, boolean, NpcBehavior, number?, number?];
+    const defs: NpcDef[] = [
       // Kelas 101
-      ['char_1',  3,  4,  0], ['char_2',  7,  6,  0],
+      ['char_1',  3,  4, 'down',  false, 'wander'],
+      ['char_2',  7,  6, 'down',  false, 'idle-turn'],
       // Kelas 102
-      ['char_3', 12,  4,  0], ['char_1', 17,  6,  0],
+      ['char_3', 12,  4, 'down',  false, 'idle-turn'],
+      ['char_1', 17,  6, 'down',  false, 'wander'],
       // Ruang Dosen
-      ['char_4', 22,  4,  7], ['char_5', 25,  6,  0],
+      ['char_4', 22,  4, 'up',    false, 'idle-turn'],
+      ['char_5', 25,  6, 'down',  false, 'pace', 25, 3],
       // Lab Komputer
-      ['char_2', 31,  4, 14], ['char_3', 34,  6, 14],
+      ['char_2', 31,  4, 'right', false, 'idle-turn'],
+      ['char_3', 34,  6, 'right', false, 'wander'],
       // Kantin
-      ['char_5',  3, 14, 14], ['char_1',  5, 16,  0], ['char_2',  6, 19,  0],
+      ['char_5',  3, 14, 'right', false, 'pace', 5, 14],
+      ['char_1',  5, 16, 'down',  false, 'idle-turn'],
+      ['char_2',  6, 19, 'down',  false, 'wander'],
       // Tata Usaha
-      ['char_4', 34, 14, 14, true], ['char_2', 33, 18, 14, true],
+      ['char_4', 34, 14, 'right', true,  'pace', 34, 18],
+      ['char_2', 33, 18, 'right', true,  'idle-turn'],
       // Library
-      ['char_3', 15, 13,  0], ['char_5', 21, 17,  7], ['char_1', 17, 16, 14, true],
+      ['char_3', 15, 13, 'down',  false, 'wander'],
+      ['char_5', 21, 17, 'up',    false, 'idle-turn'],
+      ['char_1', 17, 16, 'right', true,  'wander'],
       // Musholla
-      ['char_2',  3, 28,  7], ['char_4',  5, 29,  7], ['char_3',  7, 26,  7],
+      ['char_2',  3, 28, 'up',    false, 'idle-turn'],
+      ['char_4',  5, 29, 'up',    false, 'idle-turn'],
+      ['char_3',  7, 26, 'up',    false, 'idle-turn'],
       // Aula
-      ['char_5', 13, 26,  0], ['char_3', 15, 28,  7], ['char_4', 11, 26, 14],
+      ['char_5', 13, 26, 'down',  false, 'wander'],
+      ['char_3', 15, 28, 'up',    false, 'idle-turn'],
+      ['char_4', 11, 26, 'right', false, 'pace', 11, 29],
       // UKM
-      ['char_4', 21, 27, 14], ['char_2', 24, 29, 14, true], ['char_5', 23, 24,  0],
+      ['char_4', 21, 27, 'right', false, 'wander'],
+      ['char_2', 24, 29, 'right', true,  'idle-turn'],
+      ['char_5', 23, 24, 'down',  false, 'wander'],
       // Ruang Rapat
-      ['char_5', 31, 24,  7], ['char_1', 34, 29,  7], ['char_3', 29, 28, 14],
+      ['char_5', 31, 24, 'up',    false, 'pace', 31, 27],
+      ['char_1', 34, 29, 'up',    false, 'idle-turn'],
+      ['char_3', 29, 28, 'right', false, 'idle-turn'],
     ];
 
-    for (const [key, col, row, frame, flipX] of npcs) {
+    this.npcList = [];
+    for (const [key, col, row, facing, flipX, behavior, paceCol, paceRow] of defs) {
       if (!this.textures.exists(key)) continue;
-      this.add.sprite(col * T + T / 2, row * T + T / 2, key, frame)
+      const baseFrame = facing === 'down' ? 0 : facing === 'up' ? 7 : 14;
+      const sprite = this.add.sprite(col * T + T / 2, row * T + T / 2, key, baseFrame)
         .setScale(CHAR_SCALE)
-        .setFlipX(flipX ?? false)
+        .setFlipX(flipX)
         .setDepth(40 + row * 0.01);
+      this.npcList.push({
+        sprite, behavior,
+        homeCol: col, homeRow: row,
+        paceCol: paceCol ?? col, paceRow: paceRow ?? row,
+        col, row, facing, flipX,
+        moving: false,
+        fromCol: col, fromRow: row, toCol: col, toRow: row,
+        moveT: 1,
+        frameIdx: 0, frameTick: 0,
+        waitTimer: Math.random() * 3, // stagger initial actions
+      });
     }
   }
 
@@ -488,5 +542,93 @@ export class CampusScene extends Phaser.Scene {
   private closePanel(): void {
     this.infoPanel.setVisible(false);
     this.panelOpen = false;
+  }
+
+  // ── NPC AI ────────────────────────────────────────────────────────────────
+
+  private updateNpcs(dt: number): void {
+    for (const n of this.npcList) {
+      if (n.moving) {
+        n.moveT = Math.min(1, n.moveT + dt * NPC_SPEED);
+        const x = (n.fromCol + (n.toCol - n.fromCol) * n.moveT) * T + T / 2;
+        const y = (n.fromRow + (n.toRow - n.fromRow) * n.moveT) * T + T / 2;
+        n.sprite.setPosition(x, y);
+        n.sprite.setDepth(40 + n.toRow * 0.01);
+
+        // walk frame animation
+        n.frameTick += dt;
+        if (n.frameTick >= 1 / NPC_WALK_FPS) {
+          n.frameTick -= 1 / NPC_WALK_FPS;
+          n.frameIdx = (n.frameIdx + 1) % 7;
+        }
+        const base = n.facing === 'down' ? 0 : n.facing === 'up' ? 7 : 14;
+        n.sprite.setFrame(base + n.frameIdx);
+        n.sprite.setFlipX(n.flipX);
+
+        if (n.moveT >= 1) {
+          n.moving = false;
+          n.col = n.toCol; n.row = n.toRow;
+          n.fromCol = n.toCol; n.fromRow = n.toRow;
+          n.frameIdx = 0; n.frameTick = 0;
+          n.sprite.setFrame(base); // idle frame
+          n.waitTimer = 1 + Math.random() * 2;
+        }
+      } else {
+        n.waitTimer -= dt;
+        if (n.waitTimer <= 0) this.npcDecide(n);
+      }
+    }
+  }
+
+  private npcDecide(n: NpcData): void {
+    switch (n.behavior) {
+      case 'idle-turn': {
+        const opts: [Facing, boolean][] = [
+          ['down', false], ['up', false], ['right', false], ['right', true],
+        ];
+        [n.facing, n.flipX] = opts[Math.floor(Math.random() * opts.length)];
+        const f = n.facing === 'down' ? 0 : n.facing === 'up' ? 7 : 14;
+        n.sprite.setFrame(f);
+        n.sprite.setFlipX(n.flipX);
+        n.waitTimer = 2 + Math.random() * 3;
+        break;
+      }
+      case 'wander': {
+        const dirs = [[0,-1],[0,1],[-1,0],[1,0]].sort(() => Math.random() - 0.5);
+        for (const [dc, dr] of dirs) {
+          const tc = n.col + dc, tr = n.row + dr;
+          const homeDist = Math.abs(tc - n.homeCol) + Math.abs(tr - n.homeRow);
+          if (homeDist <= 3 && this.walkable(tc * T + T / 2, tr * T + T / 2)) {
+            this.npcStartMove(n, tc, tr, dc as -1|0|1, dr as -1|0|1);
+            return;
+          }
+        }
+        n.waitTimer = 1 + Math.random(); // stuck, wait and retry
+        break;
+      }
+      case 'pace': {
+        const atA = n.col === n.homeCol && n.row === n.homeRow;
+        const tc = atA ? n.paceCol : n.homeCol;
+        const tr = atA ? n.paceRow : n.homeRow;
+        const dc = Math.sign(tc - n.col) as -1|0|1;
+        const dr = Math.sign(tr - n.row) as -1|0|1;
+        const nc = n.col + (dc || 0), nr = n.row + (dr || 0);
+        if (this.walkable(nc * T + T / 2, nr * T + T / 2))
+          this.npcStartMove(n, nc, nr, dc, dr);
+        else
+          n.waitTimer = 1;
+        break;
+      }
+    }
+  }
+
+  private npcStartMove(n: NpcData, tc: number, tr: number, dc: -1|0|1, dr: -1|0|1): void {
+    n.moving = true;
+    n.toCol = tc; n.toRow = tr;
+    n.moveT = 0; n.frameIdx = 0; n.frameTick = 0;
+    if      (dr < 0) { n.facing = 'up';    n.flipX = false; }
+    else if (dr > 0) { n.facing = 'down';  n.flipX = false; }
+    else if (dc > 0) { n.facing = 'right'; n.flipX = false; }
+    else             { n.facing = 'right'; n.flipX = true;  }
   }
 }
