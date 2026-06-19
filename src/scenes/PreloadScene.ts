@@ -22,9 +22,13 @@ export class PreloadScene extends Phaser.Scene {
     // char_0.png: 112×96 → 7 cols × 6 rows of 16×16 frames
     // Row 0 = walk-down, row 1 = walk-left, row 2 = walk-right, row 3 = walk-up
     this.load.spritesheet('char', 'assets/characters/char_0.png', {
-      frameWidth: 16,
-      frameHeight: 16,
+      frameWidth: 16, frameHeight: 16,
     });
+    // char_1–5: same layout, used as static NPCs in rooms
+    for (let i = 1; i <= 5; i++)
+      this.load.spritesheet(`char_${i}`, `assets/characters/char_${i}.png`, {
+        frameWidth: 16, frameHeight: 16,
+      });
 
     // Pixel-agents floor tiles (16×16 each, tiled 2×2 to fill 32×32)
     this.load.image('floor_0', 'assets/floors/floor_0.png'); // light stone — corridors

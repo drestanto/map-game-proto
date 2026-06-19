@@ -51,6 +51,7 @@ export class CampusScene extends Phaser.Scene {
     this.mapData = buildCampusMap();
     this.renderMap();
     this.addRoomLabels();
+    this.addRoomObjects();
     this.createPlayer();
     this.setupAnimations();
     this.setupCamera();
@@ -102,6 +103,101 @@ export class CampusScene extends Phaser.Scene {
 
         mapLayer.add(img);
       }
+    }
+  }
+
+  private addRoomObjects(): void {
+    // ── Furniture (Graphics, depth 7) ─────────────────────────────────────
+    const g = this.add.graphics().setDepth(7);
+
+    const desk = (col: number, row: number, color = 0x7a5230) => {
+      g.fillStyle(color, 0.9);
+      g.fillRect(col * T + 4, row * T + 8, T - 8, T - 14);
+    };
+    const shelf = (col: number, row: number) => {
+      g.fillStyle(0x4a2e10, 0.95);
+      g.fillRect(col * T + 2, row * T + 2, T - 4, T - 4);
+    };
+    const mat = (col: number, row: number, color: number) => {
+      g.fillStyle(color, 0.75);
+      g.fillRect(col * T + 5, row * T + 5, T - 10, T - 10);
+    };
+    const tableCenter = (col: number, row: number) => {
+      g.fillStyle(0x6b3a20, 0.85);
+      g.fillRect(col * T + 3, row * T + 3, T - 6, T - 6);
+    };
+
+    // Classroom desks — 2 rows × 3 desks per class
+    const classDeskRows = (bc: number) => {
+      [3, 5].forEach(r => [0, 2, 4].forEach(dc => desk(bc + dc, r)));
+    };
+    classDeskRows(2);   // Kelas 101
+    classDeskRows(11);  // Kelas 102
+    classDeskRows(20);  // Ruang Dosen
+    classDeskRows(29);  // Lab Komputer
+
+    // Library — bookshelves on north & south interior walls
+    for (let c = 14; c <= 23; c += 2) { shelf(c, 12); shelf(c, 19); }
+    // Library — reading tables in center
+    [17, 19].forEach(c => [14, 16].forEach(r => tableCenter(c, r)));
+
+    // Kantin — food counter + 4 tables
+    g.fillStyle(0x8b5c30, 0.85);
+    g.fillRect(2 * T + 2, 12 * T + 2, T * 2 - 4, T - 8); // counter
+    [[4,15],[4,18],[7,15],[7,18]].forEach(([c,r]) => tableCenter(c, r));
+
+    // Tata Usaha — reception desk
+    g.fillStyle(0x5a3a20, 0.9);
+    g.fillRect(30 * T + 2, 13 * T + 2, T * 3 - 4, T - 8);
+
+    // Musholla — prayer mats (4 rows)
+    [25, 26, 27, 28].forEach(r =>
+      [2, 4, 6, 8].forEach(c => mat(c, r, 0x2a6e3a))
+    );
+
+    // Aula — stage podium at north wall
+    g.fillStyle(0x3a2a10, 0.9);
+    g.fillRect(12 * T + 4, 24 * T + 4, T * 5 - 8, T - 8);
+
+    // Ruang Rapat — conference table (2×3 cluster)
+    [30,31,32].forEach(c => [26,27].forEach(r => tableCenter(c, r)));
+
+    // UKM — sofas/low tables
+    [[20,26],[20,28],[24,26],[24,28]].forEach(([c,r]) => mat(c, r, 0x336699));
+
+    // ── Static NPC characters (depth 40) ─────────────────────────────────
+    // frame 0=south, 7=west, 14=east, 21=north
+    const npcs: [string, number, number, number][] = [
+      // Kelas 101
+      ['char_1',  3,  4,  0], ['char_2',  7,  6,  0],
+      // Kelas 102
+      ['char_3', 12,  4,  0], ['char_1', 17,  6,  0],
+      // Ruang Dosen
+      ['char_4', 22,  3, 21], ['char_5', 25,  6,  0],
+      // Lab Komputer
+      ['char_2', 30,  3, 14], ['char_3', 34,  5, 14],
+      // Kantin
+      ['char_5',  3, 16, 14], ['char_1',  6, 15,  0], ['char_2',  7, 18,  0],
+      // Tata Usaha
+      ['char_4', 34, 14,  7], ['char_2', 31, 18,  7],
+      // Library
+      ['char_3', 15, 13,  0], ['char_5', 19, 17, 21], ['char_1', 22, 15,  7],
+      // Musholla
+      ['char_2',  4, 28, 21], ['char_4',  6, 29, 21], ['char_3',  3, 26, 21],
+      // Aula
+      ['char_5', 14, 25,  0], ['char_3', 12, 28, 21], ['char_1', 16, 28, 21],
+      ['char_4', 11, 26, 14],
+      // UKM
+      ['char_4', 21, 26, 14], ['char_2', 25, 28,  7], ['char_5', 23, 25,  0],
+      // Ruang Rapat
+      ['char_5', 30, 25,  0], ['char_1', 33, 28, 21], ['char_3', 29, 27, 14],
+    ];
+
+    for (const [key, col, row, frame] of npcs) {
+      if (!this.textures.exists(key)) continue;
+      this.add.sprite(col * T + T / 2, row * T + T / 2, key, frame)
+        .setScale(2)
+        .setDepth(40);
     }
   }
 
