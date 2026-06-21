@@ -255,7 +255,7 @@ Virtual D-pad dibuat di `createDpad()` (di-call dari `create()`):
 - Setiap tombol set `this.dpad.left/right/up/down = true/false` on pointerdown/up/out
 - `movePlayer()` baca `this.dpad.*` sama seperti keyboard input
 
-## Status Saat Ini (per 2026-06-20)
+## Status Saat Ini (per 2026-06-21)
 
 ### Sudah Berjalan
 - Map 38×32 render dengan tile pixel-agents (floor_0/3/7, wall procedural)
@@ -268,6 +268,7 @@ Virtual D-pad dibuat di `createDpad()` (di-call dari `create()`):
 - Furniture pixel-agents PNG di semua ruangan (desk, PC, bookshelf, sofa, plant, dll)
 - Mobile D-pad (bottom-right) + E button (bottom-left) untuk HP
 - Zoom 1.0 → overview kampus terlihat baik
+- Deploy guide tersedia di `DEPLOY.md` — git pull + npm run build di server, domain game.dubius.id + SSL certbot
 
 ### Backlog
 - [ ] **Quest System** — NPC kasih misi, track progress
