@@ -563,7 +563,6 @@ export class CampusScene extends Phaser.Scene {
 
     const btnAlpha    = 0.55;
     const btnColor    = 0x222244;
-    const arrowColor  = 0xffffff;
 
     const makeBtn = (
       bx: number, by: number,
