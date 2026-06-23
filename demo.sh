@@ -40,3 +40,5 @@ echo "Build production-nya beneran jalan ga? Cek..."
 npm run build
 
 echo "DONE. Dari folder kosong... jadi game orientasi kampus. 🎮🔥"
+echo "Jalanin game-nya:"
+npm run preview
