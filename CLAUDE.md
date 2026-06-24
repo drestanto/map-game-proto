@@ -13,14 +13,26 @@ Dibuat sebagai tools orientasi untuk Kampus Cakrawala.
 ## Struktur
 
 ```
-src/
-  main.ts                 — Phaser game config & entry point
+src/                      ← v1 (legacy, masih jalan)
+  main.ts
   scenes/
-    PreloadScene.ts       — load aset eksternal + buat tile textures (tile_wall/floor/room/library/door)
-    CampusScene.ts        — main scene: map, player, NPC, kamera, interaksi
+    PreloadScene.ts
+    CampusScene.ts
   map/
-    campusLayout.ts       — definisi tile, map builder, data semua ruangan (ROOMS[])
+    campusLayout.ts
+
+src-v2/                   ← v2 (aktif dikembangkan)
+  main.ts
+  scenes/
+    PreloadScene.ts       — sama dengan v1
+    CampusScene.ts        — render dari MAP string[][], localStorage position save
+  map/
+    campusMap.ts          — MAP: string[][] text-based + ROOMS[] + parseObjects()
+    codes.ts              — tile codes (TC), object codes (OC/OBJ_ASSET/OBJ_SIZES), ROOM_TINTS
+    mapParser.ts          — tileOf(), isWalkable(), walkableAt()
 ```
+
+v2 dijalankan via `index-v2.html` + `vite.v2.config.ts`.
 
 ## Cara Kerja
 

@@ -41,11 +41,13 @@ npm install
 npm run build      # harus sukses: "✓ built in ..."
 ```
 
-## 3. Tes ritme (tanpa rekam)
+## 3. Setup env sebelum demo
 
 ```bash
-doitlive play demo.sh
+source scripts/demo-setup.sh && doitlive play demo.sh
 ```
+
+> Wajib pakai `source` (bukan `bash`) biar git wrapper ter-export ke doitlive.
 
 Mencet tombol sembarang → perintah ngetik sendiri. Tekan terus tiap command
 sampai kelar. `Ctrl+C` buat stop.
@@ -53,7 +55,7 @@ sampai kelar. `Ctrl+C` buat stop.
 ## 4. Rekam beneran
 
 ```bash
-asciinema rec demo.cast --command "doitlive play demo.sh"
+source scripts/demo-setup.sh && asciinema rec demo.cast --command "doitlive play demo.sh"
 ```
 
 Mencet-mencet sampai selesai → tersimpan ke `demo.cast`.
