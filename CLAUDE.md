@@ -267,27 +267,27 @@ Virtual D-pad dibuat di `createDpad()` (di-call dari `create()`):
 - Setiap tombol set `this.dpad.left/right/up/down = true/false` on pointerdown/up/out
 - `movePlayer()` baca `this.dpad.*` sama seperti keyboard input
 
-## Status Saat Ini (per 2026-06-21)
+## Status Saat Ini (per 2026-06-24)
 
-### Sudah Berjalan
-- Map 38×32 render dengan tile pixel-agents (floor_0/3/7, wall procedural)
-- Setiap ruangan punya color tint berbeda via `setTint()`
-- Player movement tile-based collision dengan wall-sliding + animasi 3-arah (flip untuk kiri)
-- Sprite char benar: frameHeight=32, tampil 32×64 (1×2 tile) — bukan balok lagi
-- Info panel ruangan (tekan E / tombol E, tutup ESC)
-- 11 ruangan terdefinisi lengkap dengan deskripsi
-- NPC char_1–5 bergerak dengan 3 behavior: idle-turn, wander, pace
-- Furniture pixel-agents PNG di semua ruangan (desk, PC, bookshelf, sofa, plant, dll)
-- Mobile D-pad (bottom-right) + E button (bottom-left) untuk HP
-- Zoom 1.0 → overview kampus terlihat baik
-- Deploy guide tersedia di `DEPLOY.md` — git pull + npm run build di server, domain game.dubius.id + SSL certbot
+### v2 — Sudah Berjalan
+- Map 38×32 **text-based** (`string[][]`) — tile + object dalam 1 cell, e.g. `"RXQ"` = room + desk + PC
+- Furniture di-parse otomatis dari MAP via `parseObjects()` → tidak ada hardcode koordinat
+- Tile render: Layer + individual Image (depth 0), tint per ruangan dari `ROOM_TINTS`
+- Player movement tile-based collision + animasi 3-arah
+- Info panel ruangan (E / ESC)
+- 11 ruangan lengkap dengan deskripsi
+- NPC char_1–5: idle-turn, wander, pace
+- Mobile D-pad + E button
+- **localStorage position save** — `campus_player_pos` disimpan tiap 1 detik, di-load saat `createPlayer()`
+
+### v1 — Legacy (masih jalan, tidak dikembangkan)
+- Map via `buildCampusMap()` number[][], furniture hardcode di `addRoomObjects()`
 
 ### Backlog
 - [ ] **Quest System** — NPC kasih misi, track progress
 - [ ] **Minimap** — tampilkan posisi player di corner
 - [ ] **Multiple floors/areas** — pindah antara gedung via pintu khusus
 - [ ] **Sound** — BGM + SFX langkah kaki
-- [ ] **Save/Load** — simpan posisi & progress quest
 - [ ] **NPC dialog** — tekan E di dekat NPC untuk dialog sederhana
 
 ## Bug Log — Jangan Diulang
