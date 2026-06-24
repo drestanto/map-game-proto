@@ -59,6 +59,7 @@ export class CampusScene extends Phaser.Scene {
   private infoPanel!: Phaser.GameObjects.Container;
   private panelOpen = false;
   private nearbyRoom: RoomInfo | null = null;
+  private saveTimer = 0;
 
   constructor() { super({ key: 'CampusScene' }); }
 
@@ -83,6 +84,11 @@ export class CampusScene extends Phaser.Scene {
     this.movePlayer(dt);
     this.checkNearby();
     this.refreshPrompt();
+    this.saveTimer -= dt;
+    if (this.saveTimer <= 0) {
+      this.saveTimer = 1;
+      localStorage.setItem('campus_player_pos', JSON.stringify({ x: this.player.x, y: this.player.y }));
+    }
   }
 
   // ── Map rendering ────────────────────────────────────────────────────────────
@@ -193,10 +199,11 @@ export class CampusScene extends Phaser.Scene {
   // ── Player ───────────────────────────────────────────────────────────────────
 
   private createPlayer(): void {
-    const col = 19, row = 15;
+    const saved = localStorage.getItem('campus_player_pos');
+    const { x, y } = saved ? JSON.parse(saved) : { x: 19 * T + T / 2, y: 15 * T + T / 2 };
     const hasChar = this.textures.exists('char');
     this.player = this.add
-      .sprite(col * T + T / 2, row * T + T / 2, hasChar ? 'char' : 'player_fallback')
+      .sprite(x, y, hasChar ? 'char' : 'player_fallback')
       .setDepth(50);
     if (hasChar) this.player.setScale(CHAR_SCALE);
   }
